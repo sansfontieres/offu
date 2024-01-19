@@ -1,0 +1,34 @@
+image: nixos/23.11
+environment:
+  NIX_CONFIG: |
+    experimental-features = nix-command flakes
+sources:
+  - git@git.sr.ht:~romi/offu
+secrets:
+  - 5322674e-c718-4675-968f-fea617fb099f
+environment:
+  deploy_server: builds.sr.ht@zaibatsu.sansfontieres.com
+  deploy_path: /var/www/sansfontieres.com/docs/offu
+tasks:
+  # HACK: gather all cache and builds in a single step for shorter
+  # outputs in other steps
+  - setup-nix-env: |
+      cd offu
+      nix develop .#ci -c bash -c exit 0
+  - tests: |
+      cd offu
+      nix develop .#ci -c zig build test --summary all
+  - gen-docs: |
+      cd offu
+      nix develop .#ci -c zig build docs
+  - deploy-docs: |
+      cd offu
+      sshopts="ssh -o StrictHostKeyChecking=no"
+      case $GIT_REF in
+      "refs/heads/front")
+        rsync --rsh="$sshopts" -rP zig-out/docs/ $deploy_server:$deploy_path/ --delete
+        ;;
+      *)
+        complete-build
+        ;;
+      esac
