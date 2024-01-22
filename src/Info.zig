@@ -12,14 +12,8 @@ const Info = @This();
 pub const IntOrFloat = f64;
 
 family_name: ?[]const u8 = null,
-
 style_name: ?[]const u8 = null,
-
 style_map_family_name: ?[]const u8 = null,
-
-/// The possible values are “regular”, “italic”, “bold”
-/// and “bold italic”. These are case sensitive and tested in
-/// `verification`.
 style_map_style_name: ?StyleMapStyle = null,
 
 /// Specified as integer, but negative versions?
@@ -648,9 +642,6 @@ test "Info deinits all kind of data structures" {
     try info.opentype_gasp_range_records.?.append(test_allocator, gasp_range_record);
 
     info.opentype_os2_family_class = .{ .class = 1, .sub_class = 2 };
-
-    // info.opentype_os2_unicode_range = .{ 12, 18 };
-    // info.opentype_os2_unicode_range.?[0] = 19;
 
     _ = try info.verification();
 }
