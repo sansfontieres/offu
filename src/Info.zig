@@ -4,10 +4,9 @@
 //! its fields too, neat!
 //!
 //! [fontinfo.plist]: https://unifiedfontobject.org/versions/ufo3/fontinfo.plist
-const std = @import("std");
-const xml = @import("libxml2.zig");
-
 const Info = @This();
+
+const std = @import("std");
 
 pub const IntOrFloat = f64;
 
@@ -681,7 +680,4 @@ test "verification() gasp_rang_record" {
     );
 
     try std.testing.expect(try info.verification());
-}
-test {
-    //
 }
