@@ -2,7 +2,7 @@ pub const Doc = @This();
 
 const std = @import("std");
 const libxml2 = @import("../libxml2.zig");
-const logger = std.log.scoped(.xml);
+const logger = @import("../logger.zig").Logger(.xml);
 
 ptr: *libxml2.xmlDoc,
 
@@ -38,9 +38,7 @@ pub fn getRootElement(doc: Doc) !Node {
     const root_element = libxml2.xmlDocGetRootElement(doc.ptr) orelse {
         return Error.NoRoot;
     };
-
     const root_name = std.mem.span(root_element.*.name);
-
     _ = std.meta.stringToEnum(FormatType, root_name) orelse {
         logger.err("Document is an unknown format: {s}", .{root_name});
         return Error.WrongFile;
@@ -85,7 +83,6 @@ pub const Node = struct {
         var it = @as(?*libxml2.xmlNode, @ptrCast(node.ptr.next));
         while (it != null) : (it = it.?.next) {
             const next_element = Node{ .ptr = it.? };
-
             if (next_element.getElementType() == .element) return next_element;
         }
 
@@ -96,7 +93,6 @@ pub const Node = struct {
         var it = @as(?*libxml2.xmlNode, @ptrCast(node.ptr.children));
         while (it != null) : (it = it.?.next) {
             const child_node = Node{ .ptr = it.? };
-
             if (child_node.getElementType() != .element) continue;
 
             if (std.mem.eql(u8, key, child_node.getName())) {
@@ -108,7 +104,6 @@ pub const Node = struct {
 
     pub fn getContent(node: Node) ?[]const u8 {
         const content = std.mem.span(libxml2.xmlNodeGetContent(node.ptr));
-
         if (content.len == 0) return null;
 
         return content;
