@@ -25,7 +25,6 @@ format_version_minor: ?usize = null,
 
 const Error = error{
     MalformedFile,
-    WrongFile,
 
     WrongVersionMajor,
 };
@@ -71,10 +70,6 @@ pub fn nodeToField(
 // This is medieval
 pub fn initFromDoc(doc: *xml.Doc) !MetaInfo {
     const root_node = try doc.getRootElement();
-
-    if (!std.mem.eql(u8, root_node.getName(), "plist")) {
-        return Error.WrongFile;
-    }
 
     const dict: ?xml.Doc.Node = root_node.findChild("dict") orelse {
         return Error.MalformedFile;
