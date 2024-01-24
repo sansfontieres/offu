@@ -496,7 +496,8 @@ const UfoInfoError = error{
     InvalidFamilyOtherBlues,
 };
 
-/// Checks fields, if not null, are correctly defined by the UFO specification
+/// Checks if fields, when not null, are correctly defined per the UFO
+/// specification
 pub fn verification(self: *Info) !bool {
     if (self.opentype_gasp_range_records) |gasp_range_records| {
         const len = gasp_range_records.len;
