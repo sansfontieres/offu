@@ -8,7 +8,7 @@ const MetaInfo = @This();
 
 const std = @import("std");
 pub const xml = @import("xml/main.zig");
-const logger = @import("../logger.zig").Logger(.metainfo);
+const logger = @import("logger.zig").Logger(.metainfo);
 
 const MetaInfoEnum = std.meta.FieldEnum(MetaInfo);
 const meta_info_default_creator = "com.sansfontieres.offu";
