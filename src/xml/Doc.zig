@@ -8,7 +8,7 @@ ptr: *libxml2.xmlDoc,
 
 pub const FormatType = enum {
     plist,
-    glif,
+    glyph, // .glif files
 };
 
 pub const Error = error{
@@ -147,6 +147,23 @@ pub const Node = struct {
         };
     }
 };
+
+test "getRootElement returns a Node only for known format types" {
+    var plist = try Doc.fromFile("test_inputs/Untitled.ufo/metainfo.plist");
+    defer plist.deinit();
+    _ = try plist.getRootElement();
+
+    var glif = try Doc.fromFile("test_inputs/space.glif");
+    defer glif.deinit();
+    _ = try glif.getRootElement();
+
+    var unknown_format = try Doc.fromFile("test_inputs/simple_xml.xml");
+    defer unknown_format.deinit();
+    try std.testing.expectError(
+        Error.WrongFile,
+        unknown_format.getRootElement(),
+    );
+}
 
 test "iteracteDict iterates through plist elements only" {
     var doc = try Doc.fromFile("test_inputs/Untitled.ufo/metainfo.plist");
