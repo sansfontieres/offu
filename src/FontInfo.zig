@@ -4,9 +4,10 @@
 //! its fields too, neat!
 //!
 //! [fontinfo.plist]: https://unifiedfontobject.org/versions/ufo3/fontinfo.plist
-const Info = @This();
+const FontInfo = @This();
 
 const std = @import("std");
+const logger = std.log.scoped(.fontinfo);
 
 pub const IntOrFloat = f64;
 
@@ -498,7 +499,7 @@ const UfoInfoError = error{
 
 /// Checks if fields, when not null, are correctly defined per the UFO
 /// specification
-pub fn verification(self: *Info) !bool {
+pub fn verification(self: *FontInfo) !bool {
     if (self.opentype_gasp_range_records) |gasp_range_records| {
         const len = gasp_range_records.len;
         if (len > 0) {
@@ -537,7 +538,7 @@ pub fn verification(self: *Info) !bool {
 }
 
 /// Deinits/frees fields of Info
-pub fn deinit(self: *Info, allocator: std.mem.Allocator) void {
+pub fn deinit(self: *FontInfo, allocator: std.mem.Allocator) void {
     if (self.opentype_gasp_range_records) |*opentype_gasp_range_records| {
         for (
             opentype_gasp_range_records.items(.range_gasp_behavior),
@@ -618,13 +619,13 @@ pub fn deinit(self: *Info, allocator: std.mem.Allocator) void {
 
 test "Info doesn’t throw errors by default" {
     // And its not a small struct
-    var info: Info = .{};
+    var info: FontInfo = .{};
     _ = try info.verification();
 }
 
 test "Info deinits all kind of data structures" {
     const test_allocator = std.testing.allocator;
-    var info: Info = .{};
+    var info: FontInfo = .{};
     defer info.deinit(test_allocator);
 
     info.opentype_os2_unicode_range = std.ArrayList(u8).init(test_allocator);
@@ -648,7 +649,7 @@ test "Info deinits all kind of data structures" {
 
 test "verification() gasp_rang_record" {
     const test_allocator = std.testing.allocator;
-    var info: Info = .{};
+    var info: FontInfo = .{};
     defer info.deinit(test_allocator);
 
     info.opentype_gasp_range_records = std.MultiArrayList(GaspRangeRecord){};

@@ -1,21 +1,19 @@
-pub const Xml = @This();
+pub const Doc = @This();
 
 const std = @import("std");
-const libxml2 = @import("libxml2.zig");
+const libxml2 = @import("../libxml2.zig");
+
+ptr: *libxml2.xmlDoc,
 
 pub const Error = error{
     EmptyElement,
     NoRoot,
-    NoValue,
     ReadFile,
-    UnexpectedNodeType,
     WrongFile,
 } || std.fmt.ParseIntError;
 
-ptr: *libxml2.xmlDoc,
-
-pub fn fromFile(path: []const u8) !Xml {
-    return Xml{
+pub fn fromFile(path: []const u8) !Doc {
+    return Doc{
         .ptr = libxml2.xmlReadFile(
             path.ptr,
             "utf-8",
@@ -24,13 +22,13 @@ pub fn fromFile(path: []const u8) !Xml {
     };
 }
 
-pub fn deinit(xml: *Xml) void {
-    libxml2.xmlFreeDoc(xml.ptr);
+pub fn deinit(doc: *Doc) void {
+    libxml2.xmlFreeDoc(doc.ptr);
 }
 
-pub fn getRootElement(xml: Xml) !Node {
+pub fn getRootElement(doc: Doc) !Node {
     return Node{
-        .ptr = libxml2.xmlDocGetRootElement(xml.ptr) orelse {
+        .ptr = libxml2.xmlDocGetRootElement(doc.ptr) orelse {
             return Error.NoRoot;
         },
     };
@@ -38,6 +36,10 @@ pub fn getRootElement(xml: Xml) !Node {
 
 pub const Node = struct {
     ptr: *libxml2.xmlNode,
+
+    pub const Error = error{
+        NoValue,
+    };
 
     pub fn findNextElem(node: Node) ?Node {
         var it = @as(?*libxml2.xmlNode, @ptrCast(node.ptr.next));
