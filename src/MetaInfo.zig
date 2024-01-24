@@ -8,6 +8,7 @@ const MetaInfo = @This();
 
 const std = @import("std");
 const Xml = @import("Xml.zig");
+const logger = std.log.scoped(.metainfo);
 
 const MetaInfoEnum = std.meta.FieldEnum(MetaInfo);
 const meta_info_default_creator = "com.sansfontieres.offu";
@@ -16,8 +17,7 @@ const meta_info_default_creator = "com.sansfontieres.offu";
 /// a reverse domain naming scheme. For example, org.robofab.ufoLib.
 creator: ?[]const u8 = meta_info_default_creator,
 
-/// The major version number of the UFO format. 3 for UFO 3. Required.
-/// (and we only support UFO3 here)
+/// The major version number of the UFO format. Required.
 format_version: usize = undefined,
 
 /// Optional if 0
@@ -26,7 +26,26 @@ format_version_minor: ?usize = null,
 const Error = error{
     MalformedFile,
     WrongFile,
+
+    WrongVersionMajor,
 };
+
+/// Checks if fields, when not null, are correctly defined per the UFO
+/// specification
+pub fn verification(self: *MetaInfo) !bool {
+    // We only support UFO3
+    if (self.format_version != 3) {
+        logger.err("formatVersion is not 3: {d}", .{self.format_version});
+        return Error.WrongVersionMajor;
+    }
+    if (self.format_version_minor) |format_version_minor| {
+        if (format_version_minor == 0) {
+            logger.warn("formatVersionMinor is optional if set to 0", .{});
+        }
+    }
+
+    return true;
+}
 
 // This is medieval
 pub fn nodeToField(
@@ -77,11 +96,13 @@ pub fn initFromDoc(doc: *Xml) !MetaInfo {
 test "deserialize" {
     var doc = try Xml.fromFile("test_inputs/Untitled.ufo/metainfo.plist");
     defer doc.deinit();
-    const meta_info = try initFromDoc(&doc);
+    var meta_info = try initFromDoc(&doc);
     try std.testing.expectEqualStrings(
         meta_info_default_creator,
         meta_info.creator.?,
     );
     try std.testing.expectEqual(3, meta_info.format_version);
     try std.testing.expectEqual(null, meta_info.format_version_minor);
+
+    _ = try meta_info.verification();
 }
