@@ -47,51 +47,36 @@ pub fn verification(self: *MetaInfo) !bool {
 }
 
 // This is medieval
-pub fn nodeToField(
-    self: *MetaInfo,
-    key_node: xml.Doc.Node,
-    value_node: xml.Doc.Node,
-) !void {
-    const key = key_node.getContent() orelse return xml.Doc.Error.EmptyElement;
-
-    // We recognize that this key/value exists, but we will replace
-    // it with meta_info_default_creator
-    if (std.mem.eql(u8, key, "creator")) return;
-
-    const value = value_node.getContent() orelse return xml.Doc.Error.EmptyElement;
-
-    if (std.mem.eql(u8, key, "formatVersion")) {
-        self.format_version = try std.fmt.parseInt(usize, value, 10);
-    } else {
-        return error.UnknownField;
-    }
-}
-
-// This is medieval
-pub fn initFromDoc(doc: *xml.Doc) !MetaInfo {
+pub fn initFromDoc(doc: *xml.Doc, allocator: std.mem.Allocator) !MetaInfo {
     const root_node = try doc.getRootElement();
-
     const dict: ?xml.Doc.Node = root_node.findChild("dict") orelse {
         return Error.MalformedFile;
     };
 
-    var meta_info = MetaInfo{};
+    // TODO: This is bad. Should be somewhere else.
+    var key_map = std.StringHashMap([]const u8).init(allocator);
+    try key_map.put("creator", "creator");
+    try key_map.put("formatVersion", "format_version");
+    try key_map.put("formatVersionMinor", "format_version_minor");
+    defer key_map.deinit();
 
-    var node_it = dict.?.iterateDict();
-    while (node_it.next()) |element| {
-        try meta_info.nodeToField(
-            element,
-            node_it.next() orelse return xml.Doc.Node.Error.NoValue,
-        );
-    }
+    var meta_info = try dict.?.dictToStruct(allocator, MetaInfo, key_map);
+
+    // We replace the creator field with our own since we are the last
+    // authoring tool touching this UFO
+    meta_info.creator = meta_info_default_creator;
 
     return meta_info;
 }
 
 test "deserialize" {
+    const test_allocator = std.testing.allocator;
+
     var doc = try xml.Doc.fromFile("test_inputs/Untitled.ufo/metainfo.plist");
     defer doc.deinit();
-    var meta_info = try initFromDoc(&doc);
+
+    var meta_info = try initFromDoc(&doc, test_allocator);
+
     try std.testing.expectEqualStrings(
         meta_info_default_creator,
         meta_info.creator.?,

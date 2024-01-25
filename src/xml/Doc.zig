@@ -23,7 +23,7 @@ pub fn fromFile(path: []const u8) !Doc {
         path.ptr,
         "utf-8",
         0,
-    ) orelse return Error.ReadFile;
+    ) orelse return Doc.Error.ReadFile;
 
     return Doc{
         .ptr = doc,
@@ -36,12 +36,12 @@ pub fn deinit(doc: *Doc) void {
 
 pub fn getRootElement(doc: Doc) !Node {
     const root_element = libxml2.xmlDocGetRootElement(doc.ptr) orelse {
-        return Error.NoRoot;
+        return Doc.Error.NoRoot;
     };
     const root_name = std.mem.span(root_element.*.name);
     _ = std.meta.stringToEnum(FormatType, root_name) orelse {
         logger.err("Document is an unknown format: {s}", .{root_name});
-        return Error.WrongFile;
+        return Doc.Error.WrongFile;
     };
 
     return Node{
@@ -76,6 +76,7 @@ pub const Node = struct {
     };
 
     pub const Error = error{
+        NotAStruct,
         NoValue,
     };
 
@@ -104,7 +105,8 @@ pub const Node = struct {
 
     pub fn getContent(node: Node) ?[]const u8 {
         const content = std.mem.span(libxml2.xmlNodeGetContent(node.ptr));
-        if (content.len == 0) return null;
+
+        if (std.mem.eql(u8, content, "\u{0}")) return null;
 
         return content;
     }
@@ -137,16 +139,82 @@ pub const Node = struct {
         }
     };
 
-    pub fn iterateDict(
-        dict: Node,
-    ) DictIterator {
+    pub fn iterateDict(dict: Node) DictIterator {
         // Jump to the first key
         const node = dict.findChild("key");
         return DictIterator{
             .node = node.?,
         };
     }
+
+    // This is medieval
+    /// Given a XML dict and a struct, maps the dict values into the
+    /// fields of a struct, following the given key name mapping.
+    pub fn dictToStruct(
+        dict: Node,
+        allocator: std.mem.Allocator,
+        comptime T: anytype,
+        key_map: std.StringHashMap([]const u8),
+    ) !T {
+        var t = T{};
+
+        var node_it = dict.iterateDict();
+        var dict_hm = std.StringHashMap([]const u8).init(allocator);
+        defer dict_hm.deinit();
+
+        while (node_it.next()) |xml_field| {
+            const value = node_it.next() orelse return Node.Error.NoValue;
+
+            const field_content = xml_field.getContent() orelse {
+                return Doc.Error.EmptyElement;
+            };
+
+            const value_content = value.getContent() orelse {
+                return Doc.Error.EmptyElement;
+            };
+
+            if (key_map.get(field_content)) |key| {
+                try dict_hm.put(key, value_content);
+            }
+        }
+
+        const type_info = @typeInfo(T);
+
+        // TODO: 😾
+        switch (type_info) {
+            .Struct => |structInfo| {
+                inline for (structInfo.fields) |field| {
+                    if (dict_hm.get(field.name)) |raw_value| {
+                        @field(t, field.name) = {
+                            try deserializeForStructField(field, raw_value);
+                        };
+                    }
+                }
+            },
+            else => return Node.Error.NotAStruct,
+        }
+        return t;
+    }
 };
+
+/// An internal function called recursively by dictToStruct to parse a
+/// string into the type of a struct field.
+pub fn deserializeForStructField(
+    field: anytype,
+    raw_value: []const u8,
+) !field.type {
+    // TODO: Fill that with more types
+    switch (field.type) {
+        usize, ?usize => {
+            return try std.fmt.parseInt(
+                usize,
+                raw_value,
+                10,
+            );
+        },
+        else => return raw_value,
+    }
+}
 
 test "getRootElement returns a Node only for known format types" {
     var plist = try Doc.fromFile("test_inputs/Untitled.ufo/metainfo.plist");
@@ -160,7 +228,7 @@ test "getRootElement returns a Node only for known format types" {
     var unknown_format = try Doc.fromFile("test_inputs/simple_xml.xml");
     defer unknown_format.deinit();
     try std.testing.expectError(
-        Error.WrongFile,
+        Doc.Error.WrongFile,
         unknown_format.getRootElement(),
     );
 }
@@ -169,11 +237,37 @@ test "iteracteDict iterates through plist elements only" {
     var doc = try Doc.fromFile("test_inputs/Untitled.ufo/metainfo.plist");
     defer doc.deinit();
 
-    var node: ?Node = try doc.getRootElement();
-    node = node.?.findChild("dict");
+    const root_node: ?Node = try doc.getRootElement();
+    var node = root_node.?.findChild("dict") orelse {
+        return error.MalformedFile;
+    };
 
-    var node_it = node.?.iterateDict();
+    var node_it = node.iterateDict();
     while (node_it.next()) |element| {
         try std.testing.expect(element.getElementType() == .element);
     }
+}
+
+test "dictToStruct" {
+    const MetaInfo = @import("../MetaInfo.zig");
+    const test_allocator = std.testing.allocator;
+
+    var doc = try Doc.fromFile("test_inputs/Untitled.ufo/metainfo.plist");
+    defer doc.deinit();
+
+    var node: ?Node = try doc.getRootElement();
+    node = node.?.findChild("dict").?;
+
+    // TODO: tidy key_map creation
+    var key_map = std.StringHashMap([]const u8).init(test_allocator);
+    try key_map.put("creator", "creator");
+    try key_map.put("formatVersion", "format_version");
+    try key_map.put("formatVersionMinor", "format_version_minor");
+    defer key_map.deinit();
+
+    _ = try node.?.dictToStruct(
+        test_allocator,
+        MetaInfo,
+        key_map,
+    );
 }
