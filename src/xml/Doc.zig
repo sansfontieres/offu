@@ -196,26 +196,26 @@ pub const Node = struct {
         }
         return t;
     }
-};
 
-/// An internal function called recursively by dictToStruct to parse a
-/// string into the type of a struct field.
-pub fn parseForStructField(
-    field: anytype,
-    raw_value: []const u8,
-) !field.type {
-    // TODO: Fill that with more types
-    switch (field.type) {
-        usize, ?usize => {
-            return try std.fmt.parseInt(
-                usize,
-                raw_value,
-                10,
-            );
-        },
-        else => return raw_value,
+    /// An internal function called recursively by dictToStruct to parse a
+    /// string into the type of a struct field.
+    pub fn parseForStructField(
+        field: anytype,
+        raw_value: []const u8,
+    ) !field.type {
+        // TODO: Fill that with more types
+        switch (field.type) {
+            usize, ?usize => {
+                return try std.fmt.parseInt(
+                    usize,
+                    raw_value,
+                    10,
+                );
+            },
+            else => return raw_value,
+        }
     }
-}
+};
 
 test "getRootElement returns a Node only for known format types" {
     var plist = try Doc.fromFile("test_inputs/Untitled.ufo/metainfo.plist");
