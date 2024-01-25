@@ -185,9 +185,10 @@ pub const Node = struct {
             .Struct => |structInfo| {
                 inline for (structInfo.fields) |field| {
                     if (dict_hm.get(field.name)) |raw_value| {
-                        @field(t, field.name) = {
-                            try deserializeForStructField(field, raw_value);
-                        };
+                        @field(t, field.name) = try parseForStructField(
+                            field,
+                            raw_value,
+                        );
                     }
                 }
             },
@@ -199,7 +200,7 @@ pub const Node = struct {
 
 /// An internal function called recursively by dictToStruct to parse a
 /// string into the type of a struct field.
-pub fn deserializeForStructField(
+pub fn parseForStructField(
     field: anytype,
     raw_value: []const u8,
 ) !field.type {
