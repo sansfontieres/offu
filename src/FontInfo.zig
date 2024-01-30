@@ -8,7 +8,7 @@ const FontInfo = @This();
 
 const std = @import("std");
 const xml = @import("xml/main.zig");
-const logger = std.log.scoped(.fontinfo);
+const logger = @import("Logger.zig").scopped(.fontinfo);
 
 pub const IntOrFloat = f64;
 

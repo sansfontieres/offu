@@ -2,7 +2,7 @@ pub const Doc = @This();
 
 const std = @import("std");
 const libxml2 = @import("../libxml2.zig");
-const logger = @import("../logger.zig").Logger(.xml);
+const logger = @import("../Logger.zig").scopped(.xml);
 pub const FontInfo = @import("../FontInfo.zig");
 const StructKeyMap = @import("../keys_maps.zig").StructKeyMap;
 
