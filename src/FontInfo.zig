@@ -7,6 +7,7 @@
 const FontInfo = @This();
 
 const std = @import("std");
+const xml = @import("xml/main.zig");
 const logger = std.log.scoped(.fontinfo);
 
 pub const IntOrFloat = f64;
@@ -86,8 +87,8 @@ opentype_os2_vendor_id: ?[]const u8 = null,
 
 opentype_os2_panose: ?Panose = null,
 opentype_os2_family_class: ?FamilyClass = null,
-opentype_os2_unicode_range: ?std.ArrayList(u8) = null,
-opentype_os2_codepage_range: ?std.ArrayList(u8) = null,
+opentype_os2_unicode_ranges: ?std.ArrayList(u8) = null,
+opentype_os2_codepage_ranges: ?std.ArrayList(u8) = null,
 opentype_os2_typo_ascender: ?isize = null,
 opentype_os2_typo_descender: ?isize = null,
 opentype_os2_typo_line_gap: ?isize = null,
@@ -127,10 +128,18 @@ postscript_underline_thickness: ?IntOrFloat = null,
 postscript_underline_position: ?IntOrFloat = null,
 
 postscript_is_fixed_pitch: ?bool = null,
-postscript_blue_values: ?std.BoundedArray(isize, 14) = null,
-postscript_other_blues: ?std.BoundedArray(isize, 10) = null,
-postscript_family_blues: ?std.BoundedArray(isize, 14) = null,
-postscript_family_other_blues: ?std.BoundedArray(isize, 10) = null,
+
+/// Should hold 14 items
+postscript_blue_values: ?std.ArrayList(isize) = null,
+
+/// Should hold 10 items
+postscript_other_blues: ?std.ArrayList(isize) = null,
+
+/// Should hold 14 items
+postscript_family_blues: ?std.ArrayList(isize) = null,
+
+/// Should hold 10 items
+postscript_family_other_blues: ?std.ArrayList(isize) = null,
 
 /// Integer or float
 postscript_stem_snap_h: ?std.ArrayList(IntOrFloat) = null,
@@ -172,7 +181,7 @@ woff_metadata_trademark: ?WoffMetadataTrademark = null,
 woff_metadata_licensee: ?WoffMetadataLicensee = null,
 woff_metadata_extensions: ?std.MultiArrayList(WoffMetadataExtension) = null,
 
-guidelines: ?std.ArrayList(GuideLine) = null,
+guidelines: ?std.ArrayList(Guideline) = null,
 
 /// Since style_map_style_name is a limited set of case sensitive strings,
 /// we (de)serialize it to/from an enum.
@@ -186,7 +195,7 @@ pub const StyleMapStyle = enum {
         return std.meta.stringToEnum(
             StyleMapStyle,
             str,
-        ) orelse UfoInfoError.InvalidStyleMapName;
+        ) orelse FontInfoError.InvalidStyleMapName;
     }
 
     pub fn toString(self: StyleMapStyle) []const u8 {
@@ -338,8 +347,8 @@ pub const FamilyClass = struct {
     sub_class: u8,
 
     fn is_valid(self: @This()) !void {
-        if (self.class > 14) return UfoInfoError.InvalidFamilyClassID;
-        if (self.sub_class > 14) return UfoInfoError.InvalidFamilySubClassID;
+        if (self.class > 14) return FontInfoError.InvalidFamilyClassID;
+        if (self.sub_class > 14) return FontInfoError.InvalidFamilySubClassID;
     }
 };
 
@@ -423,15 +432,17 @@ pub const WoffMetadataLicense = struct {
 
 /// https://unifiedfontobject.org/versions/ufo3/fontinfo.plist/#woff-metadata-copyright-record
 pub const WoffMetadataCopyright = struct {
-    text: std.ArrayList(WoffMetadataText) = null,
+    text: std.ArrayList(WoffMetadataText),
 };
 
 /// https://unifiedfontobject.org/versions/ufo3/fontinfo.plist/#woff-metadata-trademark-record
-pub const WoffMetadataTrademark = WoffMetadataCopyright;
+pub const WoffMetadataTrademark = struct {
+    text: std.ArrayList(WoffMetadataText),
+};
 
 /// https://unifiedfontobject.org/versions/ufo3/fontinfo.plist/#woff-metadata-text-record
 pub const WoffMetadataText = struct {
-    text: []const u8 = null,
+    text: []const u8,
     language: ?[]const u8 = null,
     dir: ?[]const u8 = null,
     class: ?[]const u8 = null,
@@ -452,7 +463,12 @@ pub const WoffMetadataExtension = struct {
 };
 
 /// https://unifiedfontobject.org/versions/ufo3/fontinfo.plist/#woff-metadata-extension-name-record
-const WoffMetadataExtensionName = WoffMetadataText;
+pub const WoffMetadataExtensionName = struct {
+    text: []const u8,
+    language: ?[]const u8 = null,
+    dir: ?[]const u8 = null,
+    class: ?[]const u8 = null,
+};
 
 /// https://unifiedfontobject.org/versions/ufo3/fontinfo.plist/#woff-metadata-extension-item-record
 pub const WoffMetadataExtensionItem = struct {
@@ -462,10 +478,15 @@ pub const WoffMetadataExtensionItem = struct {
 };
 
 /// https://unifiedfontobject.org/versions/ufo3/fontinfo.plist/#woff-metadata-extension-value-record
-pub const WoffMetadataExtensionValue = WoffMetadataText;
+pub const WoffMetadataExtensionValue = struct {
+    text: []const u8,
+    language: ?[]const u8 = null,
+    dir: ?[]const u8 = null,
+    class: ?[]const u8 = null,
+};
 
 /// https://unifiedfontobject.org/versions/ufo3/fontinfo.plist/#guideline-format
-pub const GuideLine = struct {
+pub const Guideline = struct {
     /// Integer or float
     x: ?IntOrFloat = null,
 
@@ -480,7 +501,7 @@ pub const GuideLine = struct {
     identifier: ?[]const u8 = null,
 };
 
-const UfoInfoError = error{
+const FontInfoError = error{
     InvalidSentinelGaspRange,
 
     InvalidStyleMapName,
@@ -495,6 +516,8 @@ const UfoInfoError = error{
     InvalidOtherBlues,
     InvalidFamilyBlues,
     InvalidFamilyOtherBlues,
+
+    MalformedFile,
 };
 
 /// Checks if fields, when not null, are correctly defined per the UFO
@@ -505,14 +528,14 @@ pub fn verification(self: *FontInfo) !bool {
         if (len > 0) {
             const last_record = gasp_range_records.get(len - 1);
             if (last_record.range_max_ppem != 0xFFFF) {
-                return UfoInfoError.InvalidSentinelGaspRange;
+                return FontInfoError.InvalidSentinelGaspRange;
             }
         }
     }
 
     if (self.units_per_em) |units_per_em| {
         if (std.math.isPositiveZero(units_per_em))
-            return UfoInfoError.UnitsPerEmNegative;
+            return FontInfoError.UnitsPerEmNegative;
     }
 
     // TODO DATE
@@ -525,11 +548,31 @@ pub fn verification(self: *FontInfo) !bool {
 
     if (self.opentype_os2_vendor_id) |opentype_os2_vendor_id| {
         if (opentype_os2_vendor_id.len > 4)
-            return UfoInfoError.VendorIDTooLong;
+            return FontInfoError.VendorIDTooLong;
     }
 
     if (self.opentype_os2_family_class) |opentype_os2_family_class| {
         try opentype_os2_family_class.is_valid();
+    }
+
+    if (self.postscript_blue_values) |postscript_blue_values| {
+        if (postscript_blue_values.items.len > 14)
+            return FontInfoError.InvalidBlueValues;
+    }
+
+    if (self.postscript_other_blues) |postscript_other_blues| {
+        if (postscript_other_blues.items.len > 10)
+            return FontInfoError.InvalidOtherBlues;
+    }
+
+    if (self.postscript_family_blues) |postscript_family_blues| {
+        if (postscript_family_blues.items.len > 14)
+            return FontInfoError.InvalidFamilyBlues;
+    }
+
+    if (self.postscript_family_other_blues) |postscript_family_other_blues| {
+        if (postscript_family_other_blues.items.len > 10)
+            return FontInfoError.InvalidFamilyOtherBlues;
     }
 
     // TODO: Guidelines colors
@@ -560,16 +603,32 @@ pub fn deinit(self: *FontInfo, allocator: std.mem.Allocator) void {
         opentype_os2_selection.deinit();
     }
 
-    if (self.opentype_os2_unicode_range) |opentype_os2_unicode_range| {
+    if (self.opentype_os2_unicode_ranges) |opentype_os2_unicode_range| {
         opentype_os2_unicode_range.deinit();
     }
 
-    if (self.opentype_os2_codepage_range) |opentype_os2_codepage_range| {
+    if (self.opentype_os2_codepage_ranges) |opentype_os2_codepage_range| {
         opentype_os2_codepage_range.deinit();
     }
 
     if (self.opentype_os2_type) |opentype_os2_type| {
         opentype_os2_type.deinit();
+    }
+
+    if (self.postscript_blue_values) |postscript_blue_values| {
+        postscript_blue_values.deinit();
+    }
+
+    if (self.postscript_other_blues) |postscript_other_blues| {
+        postscript_other_blues.deinit();
+    }
+
+    if (self.postscript_family_blues) |postscript_family_blues| {
+        postscript_family_blues.deinit();
+    }
+
+    if (self.postscript_family_other_blues) |postscript_family_other_blues| {
+        postscript_family_other_blues.deinit();
     }
 
     if (self.postscript_stem_snap_h) |postscript_stem_snap_h| {
@@ -617,6 +676,16 @@ pub fn deinit(self: *FontInfo, allocator: std.mem.Allocator) void {
     }
 }
 
+// This is medieval
+pub fn initFromDoc(doc: *xml.Doc, allocator: std.mem.Allocator) !FontInfo {
+    const root_node = try doc.getRootElement();
+    const dict: ?xml.Doc.Node = root_node.findChild("dict") orelse {
+        return FontInfoError.MalformedFile;
+    };
+
+    return try dict.?.xmlDictToStruct(allocator, FontInfo);
+}
+
 test "Info doesn’t throw errors by default" {
     // And its not a small struct
     var info: FontInfo = .{};
@@ -628,8 +697,8 @@ test "Info deinits all kind of data structures" {
     var info: FontInfo = .{};
     defer info.deinit(test_allocator);
 
-    info.opentype_os2_unicode_range = std.ArrayList(u8).init(test_allocator);
-    try info.opentype_os2_unicode_range.?.append(12);
+    info.opentype_os2_unicode_ranges = std.ArrayList(u8).init(test_allocator);
+    try info.opentype_os2_unicode_ranges.?.append(12);
 
     var gasp_range_record: GaspRangeRecord = .{
         .range_max_ppem = 0xFFFF,
@@ -666,7 +735,7 @@ test "verification() gasp_rang_record" {
     );
 
     try std.testing.expectError(
-        UfoInfoError.InvalidSentinelGaspRange,
+        FontInfoError.InvalidSentinelGaspRange,
         info.verification(),
     );
 
@@ -682,4 +751,16 @@ test "verification() gasp_rang_record" {
     );
 
     try std.testing.expect(try info.verification());
+}
+
+test "deserialize" {
+    const test_allocator = std.testing.allocator;
+
+    var doc = try xml.Doc.fromFile("test_inputs/Untitled.ufo/fontinfo.plist");
+    defer doc.deinit();
+
+    var font_info = try initFromDoc(&doc, test_allocator);
+    defer font_info.deinit(test_allocator);
+
+    _ = try font_info.verification();
 }

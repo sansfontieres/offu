@@ -39,7 +39,7 @@ pub fn verification(self: *MetaInfo) !bool {
     }
     if (self.format_version_minor) |format_version_minor| {
         if (format_version_minor == 0) {
-            logger.warn("formatVersionMinor is optional if set to 0", .{});
+            logger.info("formatVersionMinor is optional if set to 0", .{});
         }
     }
 
@@ -53,14 +53,7 @@ pub fn initFromDoc(doc: *xml.Doc, allocator: std.mem.Allocator) !MetaInfo {
         return Error.MalformedFile;
     };
 
-    // TODO: This is bad. Should be somewhere else.
-    var key_map = std.StringHashMap([]const u8).init(allocator);
-    try key_map.put("creator", "creator");
-    try key_map.put("formatVersion", "format_version");
-    try key_map.put("formatVersionMinor", "format_version_minor");
-    defer key_map.deinit();
-
-    var meta_info = try dict.?.dictToStruct(allocator, MetaInfo, key_map);
+    var meta_info = try dict.?.xmlDictToStruct(allocator, MetaInfo);
 
     // We replace the creator field with our own since we are the last
     // authoring tool touching this UFO
