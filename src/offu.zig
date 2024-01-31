@@ -9,3 +9,4 @@ const std = @import("std");
 
 pub const FontInfo = @import("FontInfo.zig");
 pub const MetaInfo = @import("MetaInfo.zig");
+pub const LayerContents = @import("LayerContents.zig");

@@ -379,27 +379,43 @@ pub const Node = struct {
 
         var node_it = try node.iterateArray();
 
-        while (node_it.next()) |xml_field| {
-            const field_content = xml_field.getContent().?;
+        while (node_it.next()) |item| {
+            const item_content = item.getContent().?;
 
             switch (T) {
-                FontInfo.Guideline,
-                FontInfo.Selection,
-                => {
-                    const t_struct = try xml_field.xmlDictToStruct(allocator, T);
-                    try t.append(t_struct);
+                []const u8 => {
+                    try t.append(item_content);
                 },
 
                 isize,
                 u8,
                 => |Type| {
-                    const t_number = try std.fmt.parseInt(Type, field_content, 10);
+                    const t_number = try std.fmt.parseInt(Type, item_content, 10);
                     try t.append(t_number);
                 },
 
                 f64 => {
-                    const t_float = try std.fmt.parseFloat(f64, field_content);
+                    const t_float = try std.fmt.parseFloat(f64, item_content);
                     try t.append(t_float);
+                },
+
+                FontInfo.Guideline,
+                FontInfo.Selection,
+                => {
+                    const t_struct = try item.xmlDictToStruct(allocator, T);
+                    try t.append(t_struct);
+                },
+
+                std.ArrayList([]const u8) => {
+                    var array_node_it = try item.iterateArray();
+                    while (array_node_it.next()) |array_item| {
+                        const array = try array_item.xmlArrayToArray(
+                            allocator,
+                            []const u8,
+                            null,
+                        );
+                        try t.append(array);
+                    }
                 },
 
                 else => return Node.Error.UnknownValue,
