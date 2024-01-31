@@ -27,6 +27,7 @@ pub fn fromFile(path: []const u8) !Doc {
         0,
     ) orelse return Doc.Error.ReadFile;
 
+    logger.info("Loaded {s} sucessfully", .{path});
     return Doc{
         .ptr = doc,
     };
@@ -34,6 +35,8 @@ pub fn fromFile(path: []const u8) !Doc {
 
 pub fn deinit(doc: *Doc) void {
     libxml2.xmlFreeDoc(doc.ptr);
+
+    logger.debug("Deinited {} successfully", .{Doc});
 }
 
 pub fn getRootElement(doc: Doc) !Node {
@@ -46,9 +49,14 @@ pub fn getRootElement(doc: Doc) !Node {
         return Doc.Error.WrongFile;
     };
 
+    logger.debug("Found root element: {s}", .{root_name});
     return Node{
         .ptr = root_element,
     };
+}
+
+pub fn getUrl(doc: Doc) []const u8 {
+    return std.mem.span(doc.ptr.URL);
 }
 
 pub const Node = struct {
@@ -422,6 +430,7 @@ pub const Node = struct {
             }
         }
 
+        logger.debug("Parsed array of {} successfully", .{T});
         return t;
     }
 
@@ -467,6 +476,7 @@ pub const Node = struct {
             }
         }
 
+        logger.debug("Parsed {} successfully", .{T});
         return t;
     }
 

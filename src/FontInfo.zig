@@ -522,7 +522,7 @@ const FontInfoError = error{
 
 /// Checks if fields, when not null, are correctly defined per the UFO
 /// specification
-pub fn verification(self: *FontInfo) !bool {
+pub fn validate(self: *FontInfo) !void {
     if (self.opentype_gasp_range_records) |gasp_range_records| {
         const len = gasp_range_records.len;
         if (len > 0) {
@@ -577,7 +577,7 @@ pub fn verification(self: *FontInfo) !bool {
 
     // TODO: Guidelines colors
 
-    return true;
+    logger.info("{} is valid", .{FontInfo});
 }
 
 /// Deinits/frees fields of Info
@@ -674,6 +674,8 @@ pub fn deinit(self: *FontInfo, allocator: std.mem.Allocator) void {
         }
         woff_metadata_extensions.deinit(allocator);
     }
+
+    logger.debug("Deinited {} successfully", .{FontInfo});
 }
 
 // This is medieval
@@ -689,7 +691,7 @@ pub fn initFromDoc(doc: *xml.Doc, allocator: std.mem.Allocator) !FontInfo {
 test "Info doesn’t throw errors by default" {
     // And its not a small struct
     var info: FontInfo = .{};
-    _ = try info.verification();
+    try info.validate();
 }
 
 test "Info deinits all kind of data structures" {
@@ -713,10 +715,10 @@ test "Info deinits all kind of data structures" {
 
     info.opentype_os2_family_class = .{ .class = 1, .sub_class = 2 };
 
-    _ = try info.verification();
+    try info.validate();
 }
 
-test "verification() gasp_rang_record" {
+test "validate() gasp_rang_record" {
     const test_allocator = std.testing.allocator;
     var info: FontInfo = .{};
     defer info.deinit(test_allocator);
@@ -736,7 +738,7 @@ test "verification() gasp_rang_record" {
 
     try std.testing.expectError(
         FontInfoError.InvalidSentinelGaspRange,
-        info.verification(),
+        info.validate(),
     );
 
     var gasp_range_record_2 = .{
@@ -750,7 +752,7 @@ test "verification() gasp_rang_record" {
         gasp_range_record_2,
     );
 
-    try std.testing.expect(try info.verification());
+    try std.testing.expect(try info.validate());
 }
 
 test "deserialize" {
@@ -762,5 +764,5 @@ test "deserialize" {
     var font_info = try initFromDoc(&doc, test_allocator);
     defer font_info.deinit(test_allocator);
 
-    _ = try font_info.verification();
+    _ = try font_info.validate();
 }

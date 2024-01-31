@@ -31,7 +31,7 @@ const Error = error{
 
 /// Checks if fields, when not null, are correctly defined per the UFO
 /// specification
-pub fn verification(self: *MetaInfo) !bool {
+pub fn validate(self: *MetaInfo) !void {
     // We only support UFO3
     if (self.format_version != 3) {
         logger.err("formatVersion is not 3: {d}", .{self.format_version});
@@ -43,7 +43,7 @@ pub fn verification(self: *MetaInfo) !bool {
         }
     }
 
-    return true;
+    logger.info("{} is valid", .{MetaInfo});
 }
 
 // This is medieval
@@ -77,5 +77,5 @@ test "deserialize" {
     try std.testing.expectEqual(3, meta_info.format_version);
     try std.testing.expectEqual(null, meta_info.format_version_minor);
 
-    _ = try meta_info.verification();
+    try meta_info.validate();
 }

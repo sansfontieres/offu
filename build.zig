@@ -48,4 +48,21 @@ pub fn build(b: *std.Build) void {
 
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&run_lib_unit_tests.step);
+
+    const examples_step = b.step("examples", "Install examples");
+    const read_exe = b.addExecutable(.{
+        .name = "read",
+        .root_source_file = .{ .path = "examples/read.zig" },
+        .target = target,
+        .optimize = optimize,
+    });
+    read_exe.root_module.addImport("offu", offu_mod);
+    examples_step.dependOn(&b.addInstallArtifact(read_exe, .{}).step);
+
+    const run_examples_step = b.step("run-examples", "Run examples");
+    const run_read_exe = b.addRunArtifact(read_exe);
+    if (b.args) |args| {
+        run_read_exe.addArgs(args);
+    }
+    run_examples_step.dependOn(&run_read_exe.step);
 }
