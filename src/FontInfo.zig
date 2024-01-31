@@ -752,7 +752,7 @@ test "validate() gasp_rang_record" {
         gasp_range_record_2,
     );
 
-    try std.testing.expect(try info.validate());
+    try info.validate();
 }
 
 test "deserialize" {
@@ -764,5 +764,5 @@ test "deserialize" {
     var font_info = try initFromDoc(&doc, test_allocator);
     defer font_info.deinit(test_allocator);
 
-    _ = try font_info.validate();
+    try font_info.validate();
 }
