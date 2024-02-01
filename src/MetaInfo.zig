@@ -6,13 +6,6 @@
 //! [metainfo.plist]: https://unifiedfontobject.org/versions/ufo3/metainfo.plist/
 const MetaInfo = @This();
 
-const std = @import("std");
-pub const xml = @import("xml/main.zig");
-const logger = @import("Logger.zig").scopped(.metainfo);
-
-const MetaInfoEnum = std.meta.FieldEnum(MetaInfo);
-const meta_info_default_creator = "com.sansfontieres.offu";
-
 /// The application or library that created the UFO. This should follow
 /// a reverse domain naming scheme. For example, org.robofab.ufoLib.
 creator: ?[]const u8 = meta_info_default_creator,
@@ -49,7 +42,7 @@ pub fn validate(self: *MetaInfo) !void {
 // This is medieval
 pub fn initFromDoc(doc: *xml.Doc, allocator: std.mem.Allocator) !MetaInfo {
     const root_node = try doc.getRootElement();
-    const dict: ?xml.Doc.Node = root_node.findChild("dict") orelse {
+    const dict: ?xml.Node = root_node.findChild("dict") orelse {
         return Error.MalformedFile;
     };
 
@@ -61,6 +54,13 @@ pub fn initFromDoc(doc: *xml.Doc, allocator: std.mem.Allocator) !MetaInfo {
 
     return meta_info;
 }
+
+const std = @import("std");
+pub const xml = @import("xml.zig");
+const logger = @import("Logger.zig").scopped(.metainfo);
+
+const MetaInfoEnum = std.meta.FieldEnum(MetaInfo);
+const meta_info_default_creator = "com.sansfontieres.offu";
 
 test "deserialize" {
     const test_allocator = std.testing.allocator;

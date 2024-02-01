@@ -6,12 +6,6 @@
 //! [fontinfo.plist]: https://unifiedfontobject.org/versions/ufo3/fontinfo.plist
 const FontInfo = @This();
 
-const std = @import("std");
-const xml = @import("xml/main.zig");
-const logger = @import("Logger.zig").scopped(.fontinfo);
-
-pub const IntOrFloat = f64;
-
 family_name: ?[]const u8 = null,
 style_name: ?[]const u8 = null,
 style_map_family_name: ?[]const u8 = null,
@@ -678,10 +672,16 @@ pub fn deinit(self: *FontInfo, allocator: std.mem.Allocator) void {
     logger.debug("Deinited {} successfully", .{FontInfo});
 }
 
+const std = @import("std");
+const xml = @import("xml.zig");
+const logger = @import("Logger.zig").scopped(.fontinfo);
+
+pub const IntOrFloat = f64;
+
 // This is medieval
 pub fn initFromDoc(doc: *xml.Doc, allocator: std.mem.Allocator) !FontInfo {
     const root_node = try doc.getRootElement();
-    const dict: ?xml.Doc.Node = root_node.findChild("dict") orelse {
+    const dict: ?xml.Node = root_node.findChild("dict") orelse {
         return FontInfoError.MalformedFile;
     };
 

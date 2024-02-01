@@ -7,13 +7,9 @@
 
 /// A list of Layers, the first one being the default layer.
 /// The list MUST NOT be empty.
-const LayerContents = @This();
+pub const LayerContents = @This();
 
 layers: std.MultiArrayList(Layer),
-
-const std = @import("std");
-const xml = @import("xml/main.zig");
-const logger = @import("Logger.zig").scopped(.layercontents);
 
 pub const Layer = struct {
     /// The name of the layer, must be unique
@@ -56,6 +52,11 @@ pub fn initFromDoc(doc: *xml.Doc, allocator: std.mem.Allocator) !LayerContents {
 pub fn deinit(layer_content: *LayerContents, allocator: std.mem.Allocator) void {
     layer_content.layers.deinit(allocator);
 }
+
+const std = @import("std");
+const xml = @import("xml.zig");
+const logger = @import("Logger.zig").scopped(.layercontents);
+const Glif = @import("Glif.zig");
 
 test "initFromDoc" {
     const test_allocator = std.testing.allocator;
