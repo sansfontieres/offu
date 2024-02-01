@@ -18,6 +18,9 @@ tasks:
   - tests: |
       cd offu
       nix develop .#ci -c zig build test --summary all
+  - build-examples: |
+      cd offu
+      nix develop .#ci -c zig build examples --summary all
   - gen-docs: |
       cd offu
       nix develop .#ci -c zig build docs
