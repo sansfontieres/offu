@@ -46,6 +46,11 @@ pub fn build(b: *std.Build) void {
 ```
 
 
+## Examples
+
+Browse the `examples` directory.
+
+
 ## Docs
 
 API: https://sansfontieres.com/docs/offu
