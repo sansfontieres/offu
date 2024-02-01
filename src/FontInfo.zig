@@ -672,12 +672,6 @@ pub fn deinit(self: *FontInfo, allocator: std.mem.Allocator) void {
     logger.debug("Deinited {} successfully", .{FontInfo});
 }
 
-const std = @import("std");
-const xml = @import("xml.zig");
-const logger = @import("Logger.zig").scopped(.fontinfo);
-
-pub const IntOrFloat = f64;
-
 // This is medieval
 pub fn initFromDoc(doc: *xml.Doc, allocator: std.mem.Allocator) !FontInfo {
     const root_node = try doc.getRootElement();
@@ -687,6 +681,14 @@ pub fn initFromDoc(doc: *xml.Doc, allocator: std.mem.Allocator) !FontInfo {
 
     return try dict.?.xmlDictToStruct(allocator, FontInfo);
 }
+
+const std = @import("std");
+const xml = @import("xml.zig");
+const logger = @import("Logger.zig").scopped(.fontinfo);
+
+pub const IntOrFloat = f64;
+
+pub const font_info_file = "fontinfo.plist";
 
 test "Info doesn’t throw errors by default" {
     // And its not a small struct

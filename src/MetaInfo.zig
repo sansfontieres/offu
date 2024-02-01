@@ -39,6 +39,11 @@ pub fn validate(self: *MetaInfo) !void {
     logger.info("{} is valid", .{MetaInfo});
 }
 
+/// Replace the name of the authoring tool with our own
+pub fn updateCreator(self: *MetaInfo) void {
+    self.creator = meta_info_default_creator;
+}
+
 // This is medieval
 pub fn initFromDoc(doc: *xml.Doc, allocator: std.mem.Allocator) !MetaInfo {
     const root_node = try doc.getRootElement();
@@ -46,13 +51,7 @@ pub fn initFromDoc(doc: *xml.Doc, allocator: std.mem.Allocator) !MetaInfo {
         return Error.MalformedFile;
     };
 
-    var meta_info = try dict.?.xmlDictToStruct(allocator, MetaInfo);
-
-    // We replace the creator field with our own since we are the last
-    // authoring tool touching this UFO
-    meta_info.creator = meta_info_default_creator;
-
-    return meta_info;
+    return try dict.?.xmlDictToStruct(allocator, MetaInfo);
 }
 
 const std = @import("std");
@@ -62,6 +61,8 @@ const logger = @import("Logger.zig").scopped(.metainfo);
 const MetaInfoEnum = std.meta.FieldEnum(MetaInfo);
 const meta_info_default_creator = "com.sansfontieres.offu";
 
+pub const meta_info_file = "metainfo.plist";
+
 test "deserialize" {
     const test_allocator = std.testing.allocator;
 
@@ -69,6 +70,13 @@ test "deserialize" {
     defer doc.deinit();
 
     var meta_info = try initFromDoc(&doc, test_allocator);
+
+    try std.testing.expectEqualStrings(
+        "com.github.fonttools.ufoLib",
+        meta_info.creator.?,
+    );
+
+    meta_info.updateCreator();
 
     try std.testing.expectEqualStrings(
         meta_info_default_creator,

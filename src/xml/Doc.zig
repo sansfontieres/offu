@@ -15,8 +15,11 @@ pub const Error = error{
 };
 
 pub fn fromFile(path: []const u8) !Doc {
+    var buffer: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+    const final_path = try std.fmt.bufPrint(buffer[0..], "{s}\u{0}", .{path});
+
     const doc = libxml2.xmlReadFile(
-        path.ptr,
+        final_path.ptr,
         "utf-8",
         0,
     ) orelse return Error.ReadFile;
