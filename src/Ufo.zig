@@ -93,6 +93,16 @@ pub fn deinit(self: *Ufo, allocator: std.mem.Allocator) void {
     self.meta_info_doc.deinit();
 }
 
+pub fn validate(self: *Ufo) !void {
+    if (self.font_info) |*font_info| {
+        try font_info.validate();
+    }
+
+    try self.meta_info.validate();
+
+    logger.info("{} was successfully validated", .{Ufo});
+}
+
 const std = @import("std");
 const xml = @import("xml.zig");
 const FontInfo = @import("FontInfo.zig");

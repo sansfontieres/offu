@@ -340,7 +340,7 @@ pub const FamilyClass = struct {
     class: u8,
     sub_class: u8,
 
-    fn is_valid(self: @This()) !void {
+    fn validate(self: @This()) !void {
         if (self.class > 14) return FontInfoError.InvalidFamilyClassID;
         if (self.sub_class > 14) return FontInfoError.InvalidFamilySubClassID;
     }
@@ -522,6 +522,10 @@ pub fn validate(self: *FontInfo) !void {
         if (len > 0) {
             const last_record = gasp_range_records.get(len - 1);
             if (last_record.range_max_ppem != 0xFFFF) {
+                logger.err(
+                    "Out of {d} elements, the last Record is not 0xFFFF",
+                    .{len},
+                );
                 return FontInfoError.InvalidSentinelGaspRange;
             }
         }
@@ -541,12 +545,17 @@ pub fn validate(self: *FontInfo) !void {
     // second must each be in the range 0-59. The timezone is UTC.
 
     if (self.opentype_os2_vendor_id) |opentype_os2_vendor_id| {
-        if (opentype_os2_vendor_id.len > 4)
+        if (opentype_os2_vendor_id.len > 4) {
+            logger.err(
+                "Vendor ID is more than 4 characters long: {d}",
+                .{opentype_os2_vendor_id.len},
+            );
             return FontInfoError.VendorIDTooLong;
+        }
     }
 
     if (self.opentype_os2_family_class) |opentype_os2_family_class| {
-        try opentype_os2_family_class.is_valid();
+        try opentype_os2_family_class.validate();
     }
 
     if (self.postscript_blue_values) |postscript_blue_values| {
@@ -571,7 +580,7 @@ pub fn validate(self: *FontInfo) !void {
 
     // TODO: Guidelines colors
 
-    logger.info("{} is valid", .{FontInfo});
+    logger.info("{} was successfully validated", .{FontInfo});
 }
 
 /// Deinits/frees fields of Info

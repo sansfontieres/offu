@@ -32,11 +32,11 @@ pub fn validate(self: *MetaInfo) !void {
     }
     if (self.format_version_minor) |format_version_minor| {
         if (format_version_minor == 0) {
-            logger.info("formatVersionMinor is optional if set to 0", .{});
+            logger.warn("formatVersionMinor is optional if set to 0", .{});
         }
     }
 
-    logger.info("{} is valid", .{MetaInfo});
+    logger.info("{} was successfully validated", .{MetaInfo});
 }
 
 /// Replace the name of the authoring tool with our own
