@@ -168,8 +168,8 @@ pub const Value = union(enum) {
     postscript_other_blues: std.ArrayList(isize),
     postscript_family_blues: std.ArrayList(isize),
     postscript_family_other_blues: std.ArrayList(isize),
-    postscript_stem_snap_h: std.ArrayList(FontInfo.IntOrFloat),
-    postscript_stem_snap_v: std.ArrayList(FontInfo.IntOrFloat),
+    postscript_stem_snap_h: std.ArrayList(f64),
+    postscript_stem_snap_v: std.ArrayList(f64),
     postscript_windows_character_set: FontInfo.PostScriptWindowsCharacterSet,
 };
 
@@ -273,7 +273,7 @@ pub fn xmlValueParse(
         .postscript_stem_snap_h => {
             const array = try node.xmlArrayToArray(
                 allocator,
-                FontInfo.IntOrFloat,
+                f64,
                 null,
             );
 
@@ -285,7 +285,7 @@ pub fn xmlValueParse(
         .postscript_stem_snap_v => {
             const array = try node.xmlArrayToArray(
                 allocator,
-                FontInfo.IntOrFloat,
+                f64,
                 null,
             );
 
@@ -443,7 +443,7 @@ pub fn parseForStructField(
         => try std.fmt.parseInt(usize, value.number_string, 10),
 
         f64,
-        ?f64, // Covers FontInfo.IntOrFloat
+        ?f64,
         => try std.fmt.parseFloat(f64, value.number_string),
 
         FontInfo.StyleMapStyle,

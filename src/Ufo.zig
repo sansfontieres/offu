@@ -10,7 +10,6 @@ meta_info: MetaInfo,
 meta_info_doc: xml.Doc,
 
 pub const CreateOptions = struct {
-    //
     font_info_file: ?[]const u8 = null,
     meta_info_file: ?[]const u8 = null,
 };

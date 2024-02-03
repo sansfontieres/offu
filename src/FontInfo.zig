@@ -20,22 +20,22 @@ copyright: ?[]const u8 = null,
 trademark: ?[]const u8 = null,
 
 /// Positive integer or float
-units_per_em: ?IntOrFloat = null,
+units_per_em: ?f64 = null,
 
 /// Integer or float
-descender: ?IntOrFloat = null,
+descender: ?f64 = null,
 
 /// Integer or float
-x_height: ?IntOrFloat = null,
+x_height: ?f64 = null,
 
 /// Integer or float
-cap_height: ?IntOrFloat = null,
+cap_height: ?f64 = null,
 
 /// Integer or float
-ascender: ?IntOrFloat = null,
+ascender: ?f64 = null,
 
 /// Integer or float
-italic_angle: ?IntOrFloat = null,
+italic_angle: ?f64 = null,
 
 note: ?[]const u8 = null,
 
@@ -111,15 +111,15 @@ postscript_font_name: ?[]const u8 = null,
 postscript_full_name: ?[]const u8 = null,
 
 /// Integer or float
-postscript_slant_angle: ?IntOrFloat = null,
+postscript_slant_angle: ?f64 = null,
 
 postscript_unique_id: ?isize = null,
 
 /// Integer or float
-postscript_underline_thickness: ?IntOrFloat = null,
+postscript_underline_thickness: ?f64 = null,
 
 /// Integer or float
-postscript_underline_position: ?IntOrFloat = null,
+postscript_underline_position: ?f64 = null,
 
 postscript_is_fixed_pitch: ?bool = null,
 
@@ -136,25 +136,25 @@ postscript_family_blues: ?std.ArrayList(isize) = null,
 postscript_family_other_blues: ?std.ArrayList(isize) = null,
 
 /// Integer or float
-postscript_stem_snap_h: ?std.ArrayList(IntOrFloat) = null,
+postscript_stem_snap_h: ?std.ArrayList(f64) = null,
 
 /// Integer or float
-postscript_stem_snap_v: ?std.ArrayList(IntOrFloat) = null,
+postscript_stem_snap_v: ?std.ArrayList(f64) = null,
 
 /// Integer or float
-postscript_blue_fuzz: ?IntOrFloat = null,
+postscript_blue_fuzz: ?f64 = null,
 
 /// Integer or float
-postscript_blue_shift: ?IntOrFloat = null,
+postscript_blue_shift: ?f64 = null,
 
 postscript_blue_scale: ?f32 = null,
 postscript_force_bold: ?bool = null,
 
 /// Integer or float
-postscript_default_width_x: ?IntOrFloat = null,
+postscript_default_width_x: ?f64 = null,
 
 /// Integer or float
-postscript_nominal_width_x: ?IntOrFloat = null,
+postscript_nominal_width_x: ?f64 = null,
 
 postscript_weight_name: ?[]const u8 = null,
 postscript_default_character: ?[]const u8 = null,
@@ -482,13 +482,13 @@ pub const WoffMetadataExtensionValue = struct {
 /// https://unifiedfontobject.org/versions/ufo3/fontinfo.plist/#guideline-format
 pub const Guideline = struct {
     /// Integer or float
-    x: ?IntOrFloat = null,
+    x: ?f64 = null,
 
     /// Integer or float
-    y: ?IntOrFloat = null,
+    y: ?f64 = null,
 
     /// Integer or float
-    angle: ?IntOrFloat = null,
+    angle: ?f64 = null,
 
     name: ?[]const u8 = null,
     color: ?[]const u8 = null,
@@ -523,7 +523,7 @@ pub fn validate(self: *FontInfo) !void {
             const last_record = gasp_range_records.get(len - 1);
             if (last_record.range_max_ppem != 0xFFFF) {
                 logger.err(
-                    "Out of {d} elements, the last Record is not 0xFFFF",
+                    "Out of {d} elements, the last record is not 0xFFFF",
                     .{len},
                 );
                 return FontInfoError.InvalidSentinelGaspRange;
@@ -694,8 +694,6 @@ pub fn initFromDoc(doc: *xml.Doc, allocator: std.mem.Allocator) !FontInfo {
 const std = @import("std");
 const xml = @import("xml.zig");
 const logger = @import("Logger.zig").scopped(.fontinfo);
-
-pub const IntOrFloat = f64;
 
 pub const font_info_file = "fontinfo.plist";
 
