@@ -106,7 +106,7 @@ pub const FontInfoKeyMap = blk: {
             .{ "openTypeOS2Panose", "opentype_os2_panose" },
             .{ "openTypeOS2FamilyClass", "opentype_os2_family_class" },
             .{ "openTypeOS2UnicodeRanges", "opentype_os2_unicode_ranges" },
-            .{ "openTypeOS2CodepageRanges", "opentype_os2_codepage_ranges" },
+            .{ "openTypeOS2CodePageRanges", "opentype_os2_codepage_ranges" },
             .{ "openTypeOS2TypoAscender", "opentype_os2_typo_ascender" },
             .{ "openTypeOS2TypoDescender", "opentype_os2_typo_descender" },
             .{ "openTypeOS2TypoLineGap", "opentype_os2_typo_line_gap" },

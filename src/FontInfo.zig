@@ -1,7 +1,6 @@
 //! Representation of [fontinfo.plist]
 //!
-//! fontinfo.plist is optional for a valid UFO, and so is Info all of
-//! its fields too, neat!
+//! fontinfo.plist is optional for a valid UFO.
 //!
 //! [fontinfo.plist]: https://unifiedfontobject.org/versions/ufo3/fontinfo.plist
 const FontInfo = @This();
@@ -39,14 +38,14 @@ italic_angle: ?f64 = null,
 
 note: ?[]const u8 = null,
 
-/// Must be sorted in ascending order based on the `range_max_ppem` value of
-/// the record with a sentinel value of 0xFFFF
+/// Must be sorted in ascending order based on the `range_max_ppem`
+/// value of the record with a sentinel value of 0xFFFF
 // TODO: Implement a tidy function which would sort this among things.
 opentype_gasp_range_records: ?std.MultiArrayList(GaspRangeRecord) = null,
 
 opentype_head_created: ?[]const u8 = null,
 opentype_head_lowest_rec_ppem: ?usize = null,
-opentype_head_flags: ?std.ArrayList(HeadFlags) = null,
+opentype_head_flags: ?HeadFlags.BitSet = null,
 
 opentype_hhea_ascender: ?isize = null,
 opentype_hhea_descender: ?isize = null,
@@ -74,21 +73,29 @@ opentype_name_records: ?std.ArrayList(NameRecord) = null,
 
 opentype_os2_width_class: ?WidthClass = null,
 opentype_os2_height_class: ?usize = null,
-opentype_os2_selection: ?std.ArrayList(Selection) = null,
+opentype_os2_selection: ?Selection.BitSet = null,
 
 /// Must be 4 characters long
 opentype_os2_vendor_id: ?[]const u8 = null,
 
 opentype_os2_panose: ?Panose = null,
 opentype_os2_family_class: ?FamilyClass = null,
-opentype_os2_unicode_ranges: ?std.ArrayList(u8) = null,
-opentype_os2_codepage_ranges: ?std.ArrayList(u8) = null,
+
+/// https://learn.microsoft.com/en-us/typography/opentype/spec/os2#ulunicoderange1-bits-031ulunicoderange2-bits-3263ulunicoderange3-bits-6495ulunicoderange4-bits-96127
+opentype_os2_unicode_ranges: ?std.bit_set.StaticBitSet(128) = null,
+
+/// https://learn.microsoft.com/en-us/typography/opentype/spec/os2#ulcodepagerange1-bits-031ulcodepagerange2-bits-3263
+opentype_os2_codepage_ranges: ?std.bit_set.StaticBitSet(64) = null,
+
 opentype_os2_typo_ascender: ?isize = null,
 opentype_os2_typo_descender: ?isize = null,
 opentype_os2_typo_line_gap: ?isize = null,
 opentype_os2_win_ascent: ?usize = null,
 opentype_os2_win_descent: ?usize = null,
-opentype_os2_type: ?std.ArrayList(u8) = null,
+
+/// https://learn.microsoft.com/en-us/typography/opentype/spec/os2#fstype
+opentype_os2_type: ?std.bit_set.StaticBitSet(15) = null,
+
 opentype_os2_subscript_x_size: ?isize = null,
 opentype_os2_subscript_y_size: ?isize = null,
 opentype_os2_subscript_x_offset: ?isize = null,
@@ -123,16 +130,16 @@ postscript_underline_position: ?f64 = null,
 
 postscript_is_fixed_pitch: ?bool = null,
 
-/// Should hold 14 items
+/// Should hold an even number of items, 14 maximum
 postscript_blue_values: ?std.ArrayList(isize) = null,
 
-/// Should hold 10 items
+/// Should hold an even number of items, 10 maximum
 postscript_other_blues: ?std.ArrayList(isize) = null,
 
-/// Should hold 14 items
+/// Should hold an even number of items, 14 maximum
 postscript_family_blues: ?std.ArrayList(isize) = null,
 
-/// Should hold 10 items
+/// Should hold an even number of items, 10 maximum
 postscript_family_other_blues: ?std.ArrayList(isize) = null,
 
 /// Integer or float
@@ -147,7 +154,7 @@ postscript_blue_fuzz: ?f64 = null,
 /// Integer or float
 postscript_blue_shift: ?f64 = null,
 
-postscript_blue_scale: ?f32 = null,
+postscript_blue_scale: ?f64 = null,
 postscript_force_bold: ?bool = null,
 
 /// Integer or float
@@ -177,8 +184,8 @@ woff_metadata_extensions: ?std.MultiArrayList(WoffMetadataExtension) = null,
 
 guidelines: ?std.ArrayList(Guideline) = null,
 
-/// Since style_map_style_name is a limited set of case sensitive strings,
-/// we (de)serialize it to/from an enum.
+/// Since style_map_style_name is a limited set of case sensitive
+/// strings, we (de)serialize it to/from an enum.
 pub const StyleMapStyle = enum {
     regular,
     bold,
@@ -200,9 +207,9 @@ pub const StyleMapStyle = enum {
 /// http://unifiedfontobject.org/versions/ufo3/fontinfo.plist/#gasp-range-record-format
 pub const GaspRangeRecord = struct {
     /// The upper limit of the range, in PPEM.
-    range_max_ppem: usize,
+    range_max_ppem: usize = undefined,
 
-    range_gasp_behavior: std.ArrayList(GaspBehavior),
+    range_gasp_behavior: GaspBehavior.BitSet = undefined,
 };
 
 /// http://unifiedfontobject.org/versions/ufo3/fontinfo.plist/#rangegaspbehavior-bits
@@ -218,6 +225,8 @@ pub const GaspBehavior = enum(u8) {
 
     /// Use multi-axis smoothing with ClearType
     symmetric_smoothing,
+
+    pub const BitSet = std.enums.EnumSet(GaspBehavior);
 };
 
 /// https://learn.microsoft.com/en-us/typography/opentype/spec/head
@@ -237,6 +246,8 @@ pub const HeadFlags = enum(u8) {
     /// Instructions may alter advance width
     alter_awidth,
 
+    // 6-10 are reserved, should always be cleared
+
     /// Font data is lossless
     lossless = 11,
 
@@ -247,7 +258,12 @@ pub const HeadFlags = enum(u8) {
     o_cleartype,
 
     /// Last Resort font
-    last_reset,
+    last_resort,
+
+    // Should be cleared
+    reserved = 15,
+
+    pub const BitSet = std.enums.EnumSet(HeadFlags);
 };
 
 /// Records should have a unique nameID, platformID, encodingID and
@@ -256,11 +272,11 @@ pub const HeadFlags = enum(u8) {
 /// combination must be taken as the value.
 /// https://unifiedfontobject.org/versions/ufo3/fontinfo.plist/#name-record-format
 pub const NameRecord = struct {
-    name_id: usize,
-    platform_id: usize,
-    encoding_id: usize,
-    language_id: usize,
-    string: []const u8,
+    name_id: usize = undefined,
+    platform_id: usize = undefined,
+    encoding_id: usize = undefined,
+    language_id: usize = undefined,
+    string: []const u8 = undefined,
 };
 
 /// https://unifiedfontobject.org/versions/ufo3/fontinfo.plist/#opentype-os2-table-fields
@@ -293,6 +309,8 @@ pub const WidthClass = enum(u8) {
 
     /// 200% of normal
     ultra_expanded,
+
+    const Set = std.enums.EnumSet(WidthClass);
 };
 
 /// Bits 0 (italic), 5 (bold) and 6 (regular) must not be set here.
@@ -329,6 +347,8 @@ pub const Selection = enum(u8) {
 
     /// Font contains oblique glyphs
     oblique,
+
+    pub const BitSet = std.enums.EnumSet(Selection);
 };
 
 /// Two integers representing the IBM font class and font subclass of
@@ -337,6 +357,9 @@ pub const Selection = enum(u8) {
 /// range 0-15.
 /// http://unifiedfontobject.org/versions/ufo3/fontinfo.plist/#opentype-os2-table-fields
 pub const FamilyClass = struct {
+    // TODO: Maybe define class as as struct and subclass as a struct
+    // branch depending of the value of class? Honestly, this one is a mess.
+    // https://learn.microsoft.com/en-us/typography/opentype/spec/ibmfc
     class: u8,
     sub_class: u8,
 
@@ -559,23 +582,31 @@ pub fn validate(self: *FontInfo) !void {
     }
 
     if (self.postscript_blue_values) |postscript_blue_values| {
-        if (postscript_blue_values.items.len > 14)
+        const capacity = postscript_blue_values.items.len;
+        if (capacity > 14 or capacity & 1 == 1) {
             return FontInfoError.InvalidBlueValues;
+        }
     }
 
     if (self.postscript_other_blues) |postscript_other_blues| {
-        if (postscript_other_blues.items.len > 10)
+        const capacity = postscript_other_blues.items.len;
+        if (capacity > 10 or capacity & 1 == 1) {
             return FontInfoError.InvalidOtherBlues;
+        }
     }
 
     if (self.postscript_family_blues) |postscript_family_blues| {
-        if (postscript_family_blues.items.len > 14)
+        const capacity = postscript_family_blues.items.len;
+        if (capacity > 14 or capacity & 1 == 1) {
             return FontInfoError.InvalidFamilyBlues;
+        }
     }
 
     if (self.postscript_family_other_blues) |postscript_family_other_blues| {
-        if (postscript_family_other_blues.items.len > 10)
+        const capacity = postscript_family_other_blues.items.len;
+        if (capacity > 10 or capacity & 1 == 1) {
             return FontInfoError.InvalidFamilyOtherBlues;
+        }
     }
 
     // TODO: Guidelines colors
@@ -586,36 +617,11 @@ pub fn validate(self: *FontInfo) !void {
 /// Deinits/frees fields of Info
 pub fn deinit(self: *FontInfo, allocator: std.mem.Allocator) void {
     if (self.opentype_gasp_range_records) |*opentype_gasp_range_records| {
-        for (
-            opentype_gasp_range_records.items(.range_gasp_behavior),
-        ) |range_gasp_behavior| {
-            range_gasp_behavior.deinit();
-        }
         opentype_gasp_range_records.deinit(allocator);
-    }
-
-    if (self.opentype_head_flags) |opentype_head_flags| {
-        opentype_head_flags.deinit();
     }
 
     if (self.opentype_name_records) |opentype_name_records| {
         opentype_name_records.deinit();
-    }
-
-    if (self.opentype_os2_selection) |opentype_os2_selection| {
-        opentype_os2_selection.deinit();
-    }
-
-    if (self.opentype_os2_unicode_ranges) |opentype_os2_unicode_range| {
-        opentype_os2_unicode_range.deinit();
-    }
-
-    if (self.opentype_os2_codepage_ranges) |opentype_os2_codepage_range| {
-        opentype_os2_codepage_range.deinit();
-    }
-
-    if (self.opentype_os2_type) |opentype_os2_type| {
-        opentype_os2_type.deinit();
     }
 
     if (self.postscript_blue_values) |postscript_blue_values| {
@@ -708,16 +714,15 @@ test "Info deinits all kind of data structures" {
     var info: FontInfo = .{};
     defer info.deinit(test_allocator);
 
-    info.opentype_os2_unicode_ranges = std.ArrayList(u8).init(test_allocator);
-    try info.opentype_os2_unicode_ranges.?.append(12);
+    // info.opentype_os2_unicode_ranges = std.ArrayList(u8).init(test_allocator);
+    // try info.opentype_os2_unicode_ranges.?.append(12);
 
     var gasp_range_record: GaspRangeRecord = .{
         .range_max_ppem = 0xFFFF,
-        .range_gasp_behavior = std.ArrayList(GaspBehavior)
-            .init(test_allocator),
+        .range_gasp_behavior = GaspBehavior.BitSet{},
     };
-    try gasp_range_record.range_gasp_behavior.append(.gridfit);
-    try gasp_range_record.range_gasp_behavior.append(.dogray);
+    gasp_range_record.range_gasp_behavior.toggle(.gridfit);
+    gasp_range_record.range_gasp_behavior.toggle(.dogray);
 
     info.opentype_gasp_range_records = std.MultiArrayList(GaspRangeRecord){};
     try info.opentype_gasp_range_records.?.append(test_allocator, gasp_range_record);
@@ -736,10 +741,10 @@ test "validate() gasp_rang_record" {
 
     var gasp_range_record_1: GaspRangeRecord = .{
         .range_max_ppem = 1,
-        .range_gasp_behavior = std.ArrayList(GaspBehavior)
-            .init(test_allocator),
+        .range_gasp_behavior = GaspBehavior.BitSet{},
     };
-    try gasp_range_record_1.range_gasp_behavior.append(.gridfit);
+    gasp_range_record_1.range_gasp_behavior.toggle(.gridfit);
+
     try info.opentype_gasp_range_records.?.append(
         test_allocator,
         gasp_range_record_1,
@@ -750,12 +755,12 @@ test "validate() gasp_rang_record" {
         info.validate(),
     );
 
-    var gasp_range_record_2 = .{
+    var gasp_range_record_2: GaspRangeRecord = .{
         .range_max_ppem = 0xFFFF,
-        .range_gasp_behavior = std.ArrayList(GaspBehavior)
-            .init(test_allocator),
+        .range_gasp_behavior = GaspBehavior.BitSet{},
     };
-    try gasp_range_record_2.range_gasp_behavior.append(.gridfit);
+    gasp_range_record_2.range_gasp_behavior.toggle(.gridfit);
+
     try info.opentype_gasp_range_records.?.append(
         test_allocator,
         gasp_range_record_2,
@@ -768,6 +773,9 @@ test "deserialize" {
     const test_allocator = std.testing.allocator;
 
     var doc = try xml.Doc.fromFile("test_inputs/Untitled.ufo/fontinfo.plist");
+    // TODO: Include those much more complete files
+    // var doc = try xml.Doc.fromFile("fontinfo_2.plist");
+    // var doc = try xml.Doc.fromFile("fontinfo_1.plist");
     defer doc.deinit();
 
     var font_info = try initFromDoc(&doc, test_allocator);
