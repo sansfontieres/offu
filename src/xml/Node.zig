@@ -1,4 +1,4 @@
-//! A wrapper around xmlNode
+//! A wrapper around libxml2’s xmlNode
 pub const Node = @This();
 
 ptr: *libxml2.xmlNode,

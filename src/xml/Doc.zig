@@ -1,4 +1,4 @@
-//! A wrapper around libxml2 xmlDoc
+//! A wrapper around libxml2’s xmlDoc
 pub const Doc = @This();
 
 ptr: *libxml2.xmlDoc,
