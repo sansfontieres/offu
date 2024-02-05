@@ -274,7 +274,7 @@ pub fn parseForStructField(
             const array = try node.xmlArrayToArray(allocator, u8);
             defer array.deinit();
 
-            std.debug.assert(array.items.len == 10);
+            std.debug.assert(array.items.len == 2);
 
             break :blk FontInfo.FamilyClass{
                 .class = array.items[0],
