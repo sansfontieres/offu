@@ -31,7 +31,6 @@ pub fn initFromDoc(doc: *xml.Doc, allocator: std.mem.Allocator) !LayerContents {
     const array_of_raw_layers = try root_node.xmlArrayToArray(
         allocator,
         std.ArrayList([]const u8),
-        null,
     );
     defer array_of_raw_layers.deinit();
 

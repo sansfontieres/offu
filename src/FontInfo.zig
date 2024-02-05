@@ -72,7 +72,12 @@ opentype_name_wws_subfamily_name: ?[]const u8 = null,
 opentype_name_records: ?std.ArrayList(NameRecord) = null,
 
 opentype_os2_width_class: ?WidthClass = null,
-opentype_os2_height_class: ?usize = null,
+
+/// While there are commonly used values (100 being thin, 400 regular,
+/// etc.) to define a named weight class, values between 1 to 1000 are
+/// valid. So no struct needed here.
+opentype_os2_weight_class: ?usize = null,
+
 opentype_os2_selection: ?Selection.BitSet = null,
 
 /// Must be 4 characters long
@@ -196,7 +201,7 @@ pub const StyleMapStyle = enum {
         return std.meta.stringToEnum(
             StyleMapStyle,
             str,
-        ) orelse FontInfoError.InvalidStyleMapName;
+        ) orelse Error.InvalidStyleMapName;
     }
 
     pub fn toString(self: StyleMapStyle) []const u8 {
@@ -309,8 +314,6 @@ pub const WidthClass = enum(u8) {
 
     /// 200% of normal
     ultra_expanded,
-
-    const Set = std.enums.EnumSet(WidthClass);
 };
 
 /// Bits 0 (italic), 5 (bold) and 6 (regular) must not be set here.
@@ -364,8 +367,8 @@ pub const FamilyClass = struct {
     sub_class: u8,
 
     fn validate(self: @This()) !void {
-        if (self.class > 14) return FontInfoError.InvalidFamilyClassID;
-        if (self.sub_class > 14) return FontInfoError.InvalidFamilySubClassID;
+        if (self.class > 14) return Error.InvalidFamilyClassID;
+        if (self.sub_class > 14) return Error.InvalidFamilySubClassID;
     }
 };
 
@@ -518,12 +521,13 @@ pub const Guideline = struct {
     identifier: ?[]const u8 = null,
 };
 
-const FontInfoError = error{
+const Error = error{
     InvalidSentinelGaspRange,
 
     InvalidStyleMapName,
     UnitsPerEmNegative,
 
+    WeightClassInvalid,
     VendorIDTooLong,
     InvalidFamilyClass,
     InvalidFamilyClassID,
@@ -549,14 +553,14 @@ pub fn validate(self: *FontInfo) !void {
                     "Out of {d} elements, the last record is not 0xFFFF",
                     .{len},
                 );
-                return FontInfoError.InvalidSentinelGaspRange;
+                return Error.InvalidSentinelGaspRange;
             }
         }
     }
 
     if (self.units_per_em) |units_per_em| {
         if (std.math.isPositiveZero(units_per_em))
-            return FontInfoError.UnitsPerEmNegative;
+            return Error.UnitsPerEmNegative;
     }
 
     // TODO DATE
@@ -567,13 +571,23 @@ pub fn validate(self: *FontInfo) !void {
     // hour:minute:second. The hour must be in the range 0:23. The minute and
     // second must each be in the range 0-59. The timezone is UTC.
 
+    if (self.opentype_os2_weight_class) |opentype_os2_weight_class| {
+        if (opentype_os2_weight_class == 0 or opentype_os2_weight_class > 1000) {
+            logger.err(
+                "opentype_weight_class is invalid: {d}",
+                .{opentype_os2_weight_class},
+            );
+            return Error.WeightClassInvalid;
+        }
+    }
+
     if (self.opentype_os2_vendor_id) |opentype_os2_vendor_id| {
         if (opentype_os2_vendor_id.len > 4) {
             logger.err(
                 "Vendor ID is more than 4 characters long: {d}",
                 .{opentype_os2_vendor_id.len},
             );
-            return FontInfoError.VendorIDTooLong;
+            return Error.VendorIDTooLong;
         }
     }
 
@@ -584,28 +598,28 @@ pub fn validate(self: *FontInfo) !void {
     if (self.postscript_blue_values) |postscript_blue_values| {
         const capacity = postscript_blue_values.items.len;
         if (capacity > 14 or capacity & 1 == 1) {
-            return FontInfoError.InvalidBlueValues;
+            return Error.InvalidBlueValues;
         }
     }
 
     if (self.postscript_other_blues) |postscript_other_blues| {
         const capacity = postscript_other_blues.items.len;
         if (capacity > 10 or capacity & 1 == 1) {
-            return FontInfoError.InvalidOtherBlues;
+            return Error.InvalidOtherBlues;
         }
     }
 
     if (self.postscript_family_blues) |postscript_family_blues| {
         const capacity = postscript_family_blues.items.len;
         if (capacity > 14 or capacity & 1 == 1) {
-            return FontInfoError.InvalidFamilyBlues;
+            return Error.InvalidFamilyBlues;
         }
     }
 
     if (self.postscript_family_other_blues) |postscript_family_other_blues| {
         const capacity = postscript_family_other_blues.items.len;
         if (capacity > 10 or capacity & 1 == 1) {
-            return FontInfoError.InvalidFamilyOtherBlues;
+            return Error.InvalidFamilyOtherBlues;
         }
     }
 
@@ -691,7 +705,7 @@ pub fn deinit(self: *FontInfo, allocator: std.mem.Allocator) void {
 pub fn initFromDoc(doc: *xml.Doc, allocator: std.mem.Allocator) !FontInfo {
     const root_node = try doc.getRootElement();
     const dict: ?xml.Node = root_node.findChild("dict") orelse {
-        return FontInfoError.MalformedFile;
+        return Error.MalformedFile;
     };
 
     return try dict.?.xmlDictToStruct(allocator, FontInfo);
@@ -751,7 +765,7 @@ test "validate() gasp_rang_record" {
     );
 
     try std.testing.expectError(
-        FontInfoError.InvalidSentinelGaspRange,
+        Error.InvalidSentinelGaspRange,
         info.validate(),
     );
 

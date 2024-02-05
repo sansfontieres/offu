@@ -31,6 +31,7 @@ pub const Error = error{
     NoDictKey,
     NoValue,
     UnknownFieldType,
+    UnknownKey,
     UnknownValue,
 };
 
@@ -78,12 +79,6 @@ pub fn getElementType(node: Node) ?ElementType {
     return @enumFromInt(node.ptr.type);
 }
 
-/// Get the type of a node based on its name.
-/// For example: <array/> returns .array
-pub fn getNodeType(node: Node) ?PlistType {
-    return std.meta.stringToEnum(PlistType, node.getName());
-}
-
 // TODO: Create an AttrIterator for .glif
 pub const NodeIterator = struct {
     node: ?Node,
@@ -123,310 +118,17 @@ pub fn iterateDict(dict: Node) !NodeIterator {
     };
 }
 
-/// Represents every types of Plist node.
-pub const PlistType = enum {
-    dict,
-    key,
-    integer,
-    real,
-    string,
-    array,
-    true,
-    false,
-};
-
-/// Represents any UFO value, potentially containing other UFO values.
-pub const Value = union(enum) {
-    bool: bool,
-    true: bool,
-    false: bool,
-    number_string: []const u8,
-    string: []const u8,
-
-    style_map_style_name: FontInfo.StyleMapStyle,
-
-    opentype_gasp_range_records: std.MultiArrayList(FontInfo.GaspRangeRecord),
-    range_gasp_behavior: FontInfo.GaspBehavior.BitSet,
-    opentype_name_records: std.ArrayList(FontInfo.NameRecord),
-    name_record: FontInfo.NameRecord,
-
-    woff_metadata_unique_id: FontInfo.WoffMetadataUniqueID,
-    woff_metadata_vendor: FontInfo.WoffMetadataVendor,
-    woff_metadata_credits: FontInfo.WoffMetadataCredit,
-    woff_metadata_description: FontInfo.WoffMetadataDescription,
-    woff_metadata_license: FontInfo.WoffMetadataLicense,
-    woff_metadata_copyright: FontInfo.WoffMetadataCopyright,
-    woff_metadata_trademark: FontInfo.WoffMetadataTrademark,
-    woff_metadata_licensee: FontInfo.WoffMetadataLicensee,
-    woff_metadata_extensions: std.MultiArrayList(FontInfo.WoffMetadataExtension),
-
-    guidelines: std.ArrayList(FontInfo.Guideline),
-
-    opentype_head_flags: FontInfo.HeadFlags.BitSet,
-
-    opentype_os2_width_class: FontInfo.WidthClass,
-    opentype_os2_selection: FontInfo.Selection.BitSet,
-    opentype_os2_unicode_ranges: std.StaticBitSet(128),
-    opentype_os2_codepage_ranges: std.StaticBitSet(64),
-    opentype_os2_type: std.StaticBitSet(15),
-    opentype_os2_family_class: FontInfo.FamilyClass,
-    opentype_os2_panose: FontInfo.Panose,
-
-    postscript_blue_values: std.ArrayList(isize),
-    postscript_other_blues: std.ArrayList(isize),
-    postscript_family_blues: std.ArrayList(isize),
-    postscript_family_other_blues: std.ArrayList(isize),
-    postscript_stem_snap_h: std.ArrayList(f64),
-    postscript_stem_snap_v: std.ArrayList(f64),
-    postscript_windows_character_set: FontInfo.PostScriptWindowsCharacterSet,
-};
-
-pub fn xmlValueParse(
-    node: Node,
-    allocator: std.mem.Allocator,
-    key: []const u8,
-) anyerror!Value {
-    var value_type = std.meta.stringToEnum(
-        @typeInfo(Value).Union.tag_type.?,
-        key,
-    );
-    if (value_type == null) {
-        const tag_from_node_name = std.meta.stringToEnum(
-            @typeInfo(Value).Union.tag_type.?,
-            node.getName(),
-        );
-
-        value_type = blk: {
-            if (tag_from_node_name) |tag| {
-                break :blk tag;
-            } else {
-                const node_type = node.getNodeType();
-                if (node_type == .integer or node_type == .real) {
-                    break :blk Value.number_string;
-                }
-
-                break :blk null;
-            }
-        };
-    }
-
-    switch (value_type.?) {
-        .bool,
-        .false,
-        .true,
-        => {
-            const node_type = node.getNodeType();
-
-            if (node_type == .true) {
-                return Value{ .bool = true };
-            } else if (node_type == .false) {
-                return Value{ .bool = false };
-            } else {
-                return Error.UnknownValue;
-            }
-        },
-
-        .number_string => return Value{ .number_string = node.getContent().? },
-        .string => return Value{ .string = node.getContent().? },
-
-        .style_map_style_name => {
-            const value = try FontInfo.StyleMapStyle.fromString(
-                node.getContent().?,
-            );
-            return Value{ .style_map_style_name = value };
-        },
-
-        .opentype_gasp_range_records => {
-            const soa = try xmlArrayToSoa(node, allocator, FontInfo.GaspRangeRecord);
-            return Value{ .opentype_gasp_range_records = soa };
-        },
-
-        .range_gasp_behavior => {
-            const bit_set = try xmlArrayToIndexedBitSet(node, FontInfo.GaspBehavior);
-            return Value{ .range_gasp_behavior = bit_set };
-        },
-
-        .opentype_head_flags => {
-            const bit_set = try xmlArrayToIndexedBitSet(node, FontInfo.HeadFlags);
-            return Value{ .opentype_head_flags = bit_set };
-        },
-
-        .opentype_name_records => {
-            const array = try node.xmlArrayToArray(
-                allocator,
-                FontInfo.NameRecord,
-                null,
-            );
-            return Value{ .opentype_name_records = array };
-        },
-
-        .opentype_os2_selection => {
-            const bit_set = try xmlArrayToIndexedBitSet(node, FontInfo.Selection);
-            return Value{ .opentype_os2_selection = bit_set };
-        },
-
-        .opentype_os2_unicode_ranges => {
-            const bit_set = try xmlArrayToBitSet(node, std.bit_set.StaticBitSet(128));
-            return Value{ .opentype_os2_unicode_ranges = bit_set };
-        },
-
-        .opentype_os2_codepage_ranges => {
-            const bit_set = try xmlArrayToBitSet(node, std.bit_set.StaticBitSet(64));
-            return Value{ .opentype_os2_codepage_ranges = bit_set };
-        },
-
-        .opentype_os2_type => {
-            const bit_set = try xmlArrayToBitSet(node, std.bit_set.StaticBitSet(15));
-            return Value{ .opentype_os2_type = bit_set };
-        },
-
-        .opentype_os2_family_class => {
-            const array = try node.xmlArrayToArray(allocator, u8, 10);
-            defer array.deinit();
-            return Value{
-                .opentype_os2_family_class = FontInfo.FamilyClass{
-                    .class = array.items[0],
-                    .sub_class = array.items[1],
-                },
-            };
-        },
-
-        .opentype_os2_panose => {
-            const array = try node.xmlArrayToArray(allocator, u8, 10);
-            defer array.deinit();
-            return Value{
-                .opentype_os2_panose = FontInfo.Panose{
-                    .family_type = array.items[0],
-                    .serif_style = array.items[1],
-                    .weight = array.items[2],
-                    .proportion = array.items[3],
-                    .contrast = array.items[4],
-                    .stroke_variation = array.items[5],
-                    .arm_style = array.items[6],
-                    .letterform = array.items[7],
-                    .midline = array.items[8],
-                    .x_height = array.items[9],
-                },
-            };
-        },
-
-        .opentype_os2_width_class => {
-            const bit: FontInfo.WidthClass = @enumFromInt(
-                try std.fmt.parseInt(u8, node.getContent().?, 10),
-            );
-
-            return Value{ .opentype_os2_width_class = bit };
-        },
-
-        .postscript_blue_values => {
-            const array = try node.xmlArrayToArray(
-                allocator,
-                isize,
-                14,
-            );
-
-            return Value{ .postscript_blue_values = array };
-        },
-
-        .postscript_family_blues => {
-            const array = try node.xmlArrayToArray(
-                allocator,
-                isize,
-                14,
-            );
-
-            return Value{
-                .postscript_family_blues = array,
-            };
-        },
-
-        .postscript_other_blues => {
-            const array = try node.xmlArrayToArray(
-                allocator,
-                isize,
-                10,
-            );
-
-            return Value{
-                .postscript_other_blues = array,
-            };
-        },
-
-        .postscript_family_other_blues => {
-            const array = try node.xmlArrayToArray(
-                allocator,
-                isize,
-                10,
-            );
-
-            return Value{
-                .postscript_family_other_blues = array,
-            };
-        },
-
-        .postscript_stem_snap_h => {
-            const array = try node.xmlArrayToArray(
-                allocator,
-                f64,
-                null,
-            );
-
-            return Value{
-                .postscript_stem_snap_h = array,
-            };
-        },
-
-        .postscript_stem_snap_v => {
-            const array = try node.xmlArrayToArray(
-                allocator,
-                f64,
-                null,
-            );
-
-            return Value{
-                .postscript_stem_snap_v = array,
-            };
-        },
-
-        .postscript_windows_character_set => {
-            const bit: FontInfo.PostScriptWindowsCharacterSet = @enumFromInt(
-                try std.fmt.parseInt(usize, node.getContent().?, 10),
-            );
-
-            return Value{
-                .postscript_windows_character_set = bit,
-            };
-        },
-
-        .guidelines => {
-            const array = try node.xmlArrayToArray(
-                allocator,
-                FontInfo.Guideline,
-                null,
-            );
-
-            return Value{
-                .guidelines = array,
-            };
-        },
-
-        else => {
-            return Error.UnknownValue;
-        },
-    }
-}
-
 pub fn xmlArrayToIndexedBitSet(
     node: Node,
     T: anytype,
 ) !T.BitSet {
-    var bit_set = T.BitSet{};
+    var bit_set = T.BitSet.initFull();
 
     var node_it = try node.iterateArray();
     while (node_it.next()) |item| {
         const item_content = item.getContent().?;
         const bit: T = @enumFromInt(try std.fmt.parseInt(u8, item_content, 10));
-        bit_set.toggle(bit);
+        bit_set.setPresent(bit, true);
     }
 
     return bit_set;
@@ -473,14 +175,8 @@ pub fn xmlArrayToArray(
     node: Node,
     allocator: std.mem.Allocator,
     T: anytype,
-    capacity: ?usize,
 ) !std.ArrayList(T) {
-    var t: std.ArrayList(T) = undefined;
-    if (capacity) |c| {
-        t = try std.ArrayList(T).initCapacity(allocator, c);
-    } else {
-        t = std.ArrayList(T).init(allocator);
-    }
+    var t = std.ArrayList(T).init(allocator);
 
     var node_it = try node.iterateArray();
 
@@ -518,7 +214,6 @@ pub fn xmlArrayToArray(
                     const array = try array_item.xmlArrayToArray(
                         allocator,
                         []const u8,
-                        null,
                     );
                     try t.append(array);
                 }
@@ -532,7 +227,6 @@ pub fn xmlArrayToArray(
     return t;
 }
 
-// This is medieval
 /// Given a XML dict and a struct, maps the dict values into the
 /// fields of a struct, following the given key name mapping.
 pub fn xmlDictToStruct(
@@ -541,10 +235,10 @@ pub fn xmlDictToStruct(
     comptime T: anytype,
 ) !T {
     var t = T{};
-    const key_map = StructKeyMap(T);
+    const key_map = try StructKeyMap(T);
 
     var node_it = try dict.iterateDict();
-    var dict_hm = std.StringHashMap(Value).init(allocator);
+    var dict_hm = std.StringHashMap(Node).init(allocator);
     defer dict_hm.deinit();
 
     while (node_it.next()) |xml_field| {
@@ -554,23 +248,17 @@ pub fn xmlDictToStruct(
             return Error.EmptyElement;
         };
 
-        var key: []const u8 = xml_field.getName();
-        if (key_map) |map| {
-            if (map.get(field_content)) |k|
-                key = k;
+        if (key_map.get(field_content)) |key| {
+            try dict_hm.putNoClobber(@tagName(key), value_node);
+        } else {
+            std.debug.print("{s}\n", .{field_content});
+            return Error.UnknownKey;
         }
-
-        const value = try value_node.xmlValueParse(
-            allocator,
-            key,
-        );
-
-        try dict_hm.put(key, value);
     }
 
     inline for (std.meta.fields(T)) |field| {
         if (dict_hm.get(field.name)) |value| {
-            @field(t, field.name) = try parseForStructField(field, value);
+            @field(t, field.name) = try parseForStructField(field, value, allocator);
         }
     }
 
@@ -582,108 +270,169 @@ pub fn xmlDictToStruct(
 /// string into the type of a struct field.
 pub fn parseForStructField(
     field: std.builtin.Type.StructField,
-    value: Value,
+    node: Node,
+    allocator: std.mem.Allocator,
 ) !field.type {
     @setEvalBranchQuota(1200);
+    const node_content = node.getContent().?;
+
     return switch (field.type) {
         []const u8,
         ?[]const u8,
-        => value.string,
+        => node_content,
 
         bool,
         ?bool,
-        => value.bool,
+        => blk: {
+            const node_name = node.getName();
+
+            if (std.mem.eql(u8, node_name, "true")) {
+                break :blk true;
+            } else if (std.mem.eql(u8, node_name, "false")) {
+                break :blk false;
+            } else {
+                return Error.UnknownValue;
+            }
+        },
 
         isize,
         ?isize,
-        => try std.fmt.parseInt(isize, value.number_string, 10),
+        => try std.fmt.parseInt(isize, node_content, 10),
 
         usize,
         ?usize,
-        => try std.fmt.parseInt(usize, value.number_string, 10),
+        => try std.fmt.parseInt(usize, node_content, 10),
 
         f64,
         ?f64,
-        => try std.fmt.parseFloat(f64, value.number_string),
+        => try std.fmt.parseFloat(f64, node_content),
 
-        ?std.MultiArrayList(FontInfo.GaspRangeRecord) => value.opentype_gasp_range_records,
-        FontInfo.GaspBehavior.BitSet => value.range_gasp_behavior,
+        ?std.MultiArrayList(FontInfo.GaspRangeRecord) => blk: {
+            const soa = try xmlArrayToSoa(node, allocator, FontInfo.GaspRangeRecord);
+            break :blk soa;
+        },
 
-        ?std.ArrayList(FontInfo.NameRecord) => value.opentype_name_records,
+        FontInfo.GaspBehavior.BitSet => blk: {
+            const bit_set = try xmlArrayToIndexedBitSet(node, FontInfo.GaspBehavior);
+            break :blk bit_set;
+        },
 
-        ?FontInfo.WidthClass => value.opentype_os2_width_class,
+        ?std.ArrayList(FontInfo.NameRecord) => blk: {
+            const array = try node.xmlArrayToArray(
+                allocator,
+                FontInfo.NameRecord,
+            );
+            break :blk array;
+        },
 
-        ?FontInfo.StyleMapStyle => value.style_map_style_name,
+        ?FontInfo.WidthClass => blk: {
+            const bit: FontInfo.WidthClass = @enumFromInt(
+                try std.fmt.parseInt(u8, node.getContent().?, 10),
+            );
 
-        ?std.ArrayList(FontInfo.Guideline) => value.guidelines,
+            break :blk bit;
+        },
 
-        ?FontInfo.Selection.BitSet => value.opentype_os2_selection,
+        ?FontInfo.StyleMapStyle => blk: {
+            const value = try FontInfo.StyleMapStyle.fromString(
+                node.getContent().?,
+            );
+            break :blk value;
+        },
 
-        ?FontInfo.Panose => value.opentype_os2_panose,
+        ?std.ArrayList(FontInfo.Guideline) => blk: {
+            const array = try node.xmlArrayToArray(
+                allocator,
+                FontInfo.Guideline,
+            );
 
-        ?FontInfo.FamilyClass => value.opentype_os2_family_class,
+            break :blk array;
+        },
 
-        ?FontInfo.HeadFlags.BitSet => value.opentype_head_flags,
+        ?FontInfo.Selection.BitSet => blk: {
+            const bit_set = try xmlArrayToIndexedBitSet(node, FontInfo.Selection);
+            break :blk bit_set;
+        },
 
-        ?std.bit_set.StaticBitSet(128) => value.opentype_os2_unicode_ranges,
-        ?std.bit_set.StaticBitSet(64) => value.opentype_os2_codepage_ranges,
-        ?std.bit_set.StaticBitSet(15) => value.opentype_os2_type,
+        ?FontInfo.Panose => blk: {
+            const array = try node.xmlArrayToArray(allocator, u8);
+            defer array.deinit();
+
+            std.debug.assert(array.items.len == 10);
+
+            break :blk FontInfo.Panose{
+                .family_type = array.items[0],
+                .serif_style = array.items[1],
+                .weight = array.items[2],
+                .proportion = array.items[3],
+                .contrast = array.items[4],
+                .stroke_variation = array.items[5],
+                .arm_style = array.items[6],
+                .letterform = array.items[7],
+                .midline = array.items[8],
+                .x_height = array.items[9],
+            };
+        },
+
+        ?FontInfo.FamilyClass => blk: {
+            const array = try node.xmlArrayToArray(allocator, u8);
+            defer array.deinit();
+
+            std.debug.assert(array.items.len == 10);
+
+            break :blk FontInfo.FamilyClass{
+                .class = array.items[0],
+                .sub_class = array.items[1],
+            };
+        },
+
+        ?FontInfo.HeadFlags.BitSet => blk: {
+            const bit_set = try xmlArrayToIndexedBitSet(node, FontInfo.HeadFlags);
+            break :blk bit_set;
+        },
+
+        ?std.bit_set.StaticBitSet(128) => blk: {
+            const bit_set = try xmlArrayToBitSet(node, std.bit_set.StaticBitSet(128));
+            break :blk bit_set;
+        },
+
+        ?std.bit_set.StaticBitSet(64) => blk: {
+            const bit_set = try xmlArrayToBitSet(node, std.bit_set.StaticBitSet(64));
+            break :blk bit_set;
+        },
+
+        ?std.bit_set.StaticBitSet(15) => blk: {
+            const bit_set = try xmlArrayToBitSet(node, std.bit_set.StaticBitSet(15));
+            break :blk bit_set;
+        },
 
         std.ArrayList(isize),
         ?std.ArrayList(isize),
         => blk: {
-            if (std.mem.eql(
-                u8,
-                field.name,
-                "postscript_blue_values",
-            ))
-                break :blk value.postscript_blue_values;
-
-            if (std.mem.eql(
-                u8,
-                field.name,
-                "postscript_other_blues",
-            ))
-                break :blk value.postscript_other_blues;
-
-            if (std.mem.eql(
-                u8,
-                field.name,
-                "postscript_family_blues",
-            ))
-                break :blk value.postscript_family_blues;
-
-            if (std.mem.eql(
-                u8,
-                field.name,
-                "postscript_family_other_blues",
-            ))
-                break :blk value.postscript_family_other_blues;
-
-            break :blk null;
+            const array = try node.xmlArrayToArray(
+                allocator,
+                isize,
+            );
+            break :blk array;
         },
 
         std.ArrayList(f64),
         ?std.ArrayList(f64),
         => blk: {
-            if (std.mem.eql(
-                u8,
-                field.name,
-                "postscript_stem_snap_h",
-            ))
-                break :blk value.postscript_stem_snap_h;
-
-            if (std.mem.eql(
-                u8,
-                field.name,
-                "postscript_stem_snap_v",
-            ))
-                break :blk value.postscript_stem_snap_v;
-
-            break :blk null;
+            const array = try node.xmlArrayToArray(
+                allocator,
+                f64,
+            );
+            break :blk array;
         },
 
-        ?FontInfo.PostScriptWindowsCharacterSet => value.postscript_windows_character_set,
+        ?FontInfo.PostScriptWindowsCharacterSet => blk: {
+            const bit: FontInfo.PostScriptWindowsCharacterSet = @enumFromInt(
+                try std.fmt.parseInt(usize, node.getContent().?, 10),
+            );
+
+            break :blk bit;
+        },
 
         else => Error.UnknownFieldType,
     };
