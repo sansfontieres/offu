@@ -1,9 +1,10 @@
-const std = @import("std");
+//! Stores hash maps which has strings of the UFO defined keys as keys,
+//! and a FieldEnum member of the corresponding Offu type. Those are
+//! generated at comptime.
+pub const ComptimeKeyMaps = @This();
 
-pub const MetaInfo = @import("MetaInfo.zig");
-pub const FontInfo = @import("FontInfo.zig");
-
-pub fn StructKeyMap(comptime T: anytype) !type {
+/// For a given type, tries to return the corresponding hash map
+pub fn get(comptime T: anytype) !type {
     return switch (T) {
         MetaInfo => MetaInfoKeyMap,
         FontInfo => FontInfoKeyMap,
@@ -25,11 +26,11 @@ pub fn StructKeyMap(comptime T: anytype) !type {
         FontInfo.WoffMetadataExtensionValue => WoffMetadataExtensionValueKeyMap,
         FontInfo.Guideline => GuidelineKeyMap,
 
-        else => return error.UnknownStruct,
+        else => error.UnknownStruct,
     };
 }
 
-pub const MetaInfoKeyMap = std.ComptimeStringMap(
+const MetaInfoKeyMap = std.ComptimeStringMap(
     std.meta.FieldEnum(MetaInfo),
     .{
         .{ "creator", .creator },
@@ -38,7 +39,7 @@ pub const MetaInfoKeyMap = std.ComptimeStringMap(
     },
 );
 
-pub const FontInfoKeyMap = blk: {
+const FontInfoKeyMap = blk: {
     @setEvalBranchQuota(2700);
     break :blk std.ComptimeStringMap(
         std.meta.FieldEnum(FontInfo),
@@ -174,7 +175,7 @@ pub const FontInfoKeyMap = blk: {
     );
 };
 
-pub const GaspRangeRecordKeyMap = std.ComptimeStringMap(
+const GaspRangeRecordKeyMap = std.ComptimeStringMap(
     std.meta.FieldEnum(FontInfo.GaspRangeRecord),
     .{
         .{ "rangeMaxPPEM", .range_max_ppem },
@@ -182,7 +183,7 @@ pub const GaspRangeRecordKeyMap = std.ComptimeStringMap(
     },
 );
 
-pub const NameRecordKeyMap = std.ComptimeStringMap(
+const NameRecordKeyMap = std.ComptimeStringMap(
     std.meta.FieldEnum(FontInfo.NameRecord),
     .{
         .{ "nameID", .name_id },
@@ -193,7 +194,7 @@ pub const NameRecordKeyMap = std.ComptimeStringMap(
     },
 );
 
-pub const FamilyClassKeyMap = std.ComptimeStringMap(
+const FamilyClassKeyMap = std.ComptimeStringMap(
     std.meta.FieldEnum(FontInfo.FamilyClass),
     .{
         .{ "class", .class },
@@ -201,14 +202,14 @@ pub const FamilyClassKeyMap = std.ComptimeStringMap(
     },
 );
 
-pub const WoffMetadataUniqueIDKeyMap = std.ComptimeStringMap(
+const WoffMetadataUniqueIDKeyMap = std.ComptimeStringMap(
     std.meta.FieldEnum(FontInfo.WoffMetadataUniqueID),
     .{
         .{ "id", .id },
     },
 );
 
-pub const WoffMetadataVendorKeyMap = std.ComptimeStringMap(
+const WoffMetadataVendorKeyMap = std.ComptimeStringMap(
     std.meta.FieldEnum(FontInfo.WoffMetadataVendor),
     .{
         .{ "name", .name },
@@ -219,7 +220,7 @@ pub const WoffMetadataVendorKeyMap = std.ComptimeStringMap(
     },
 );
 
-pub const WoffMetadataCreditKeyMap = std.ComptimeStringMap(
+const WoffMetadataCreditKeyMap = std.ComptimeStringMap(
     std.meta.FieldEnum(FontInfo.WoffMetadataCredit),
     .{
         .{ "name", .name },
@@ -230,7 +231,7 @@ pub const WoffMetadataCreditKeyMap = std.ComptimeStringMap(
     },
 );
 
-pub const WoffMetadataDescriptionKeyMap = std.ComptimeStringMap(
+const WoffMetadataDescriptionKeyMap = std.ComptimeStringMap(
     std.meta.FieldEnum(FontInfo.WoffMetadataDescription),
     .{
         .{ "url", .url },
@@ -238,7 +239,7 @@ pub const WoffMetadataDescriptionKeyMap = std.ComptimeStringMap(
     },
 );
 
-pub const WoffMetadataLicenseKeyMap = std.ComptimeStringMap(
+const WoffMetadataLicenseKeyMap = std.ComptimeStringMap(
     std.meta.FieldEnum(FontInfo.WoffMetadataLicense),
     .{
         .{ "url", .url },
@@ -247,16 +248,16 @@ pub const WoffMetadataLicenseKeyMap = std.ComptimeStringMap(
     },
 );
 
-pub const WoffMetadataCopyrightKeyMap = std.ComptimeStringMap(
+const WoffMetadataCopyrightKeyMap = std.ComptimeStringMap(
     std.meta.FieldEnum(FontInfo.WoffMetadataCopyright),
     .{
         .{ "text", .text },
     },
 );
 
-pub const WoffMetadataTrademarkKeyMap = WoffMetadataCopyrightKeyMap;
+const WoffMetadataTrademarkKeyMap = WoffMetadataCopyrightKeyMap;
 
-pub const WoffMetadataTextKeyMap = std.ComptimeStringMap(
+const WoffMetadataTextKeyMap = std.ComptimeStringMap(
     std.meta.FieldEnum(FontInfo.WoffMetadataText),
     .{
         .{ "text", .text },
@@ -266,7 +267,7 @@ pub const WoffMetadataTextKeyMap = std.ComptimeStringMap(
     },
 );
 
-pub const WoffMetadataLicenseeKeyMap = std.ComptimeStringMap(
+const WoffMetadataLicenseeKeyMap = std.ComptimeStringMap(
     std.meta.FieldEnum(FontInfo.WoffMetadataLicensee),
     .{
         .{ "id", .id },
@@ -275,7 +276,7 @@ pub const WoffMetadataLicenseeKeyMap = std.ComptimeStringMap(
     },
 );
 
-pub const WoffMetadataExtensionItemKeyMap = std.ComptimeStringMap(
+const WoffMetadataExtensionItemKeyMap = std.ComptimeStringMap(
     std.meta.FieldEnum(FontInfo.WoffMetadataExtensionItem),
     .{
         .{ "id", .id },
@@ -284,7 +285,7 @@ pub const WoffMetadataExtensionItemKeyMap = std.ComptimeStringMap(
     },
 );
 
-pub const WoffMetadataExtensionKeyMap = std.ComptimeStringMap(
+const WoffMetadataExtensionKeyMap = std.ComptimeStringMap(
     std.meta.FieldEnum(FontInfo.WoffMetadataExtension),
     .{
         .{ "id", .id },
@@ -293,11 +294,11 @@ pub const WoffMetadataExtensionKeyMap = std.ComptimeStringMap(
     },
 );
 
-pub const WoffMetadataExtensionNameKeyMap = WoffMetadataTextKeyMap;
+const WoffMetadataExtensionNameKeyMap = WoffMetadataTextKeyMap;
 
-pub const WoffMetadataExtensionValueKeyMap = WoffMetadataTextKeyMap;
+const WoffMetadataExtensionValueKeyMap = WoffMetadataTextKeyMap;
 
-pub const GuidelineKeyMap = std.ComptimeStringMap(
+const GuidelineKeyMap = std.ComptimeStringMap(
     std.meta.FieldEnum(FontInfo.Guideline),
     .{
         .{ "x", .x },
@@ -308,3 +309,8 @@ pub const GuidelineKeyMap = std.ComptimeStringMap(
         .{ "identifier", .identifier },
     },
 );
+
+const std = @import("std");
+
+const MetaInfo = @import("MetaInfo.zig");
+const FontInfo = @import("FontInfo.zig");

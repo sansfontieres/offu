@@ -132,7 +132,7 @@ pub fn xmlDictToStruct(
     comptime T: anytype,
 ) !T {
     var t = T{};
-    const key_map = try StructKeyMap(T);
+    const key_map = try ComptimeKeyMaps.get(T);
 
     var node_it = try dict.iterateDict();
     var dict_hm = std.StringHashMap(Node).init(allocator);
@@ -175,7 +175,6 @@ pub fn parseForStructField(
     node: Node,
     allocator: std.mem.Allocator,
 ) !field.type {
-    @setEvalBranchQuota(1200);
     const node_content = node.getContent().?;
 
     return switch (field.type) {
@@ -473,7 +472,7 @@ const libxml2 = @import("../libxml2.zig");
 const std = @import("std");
 const logger = @import("../Logger.zig").scopped(.xml_node);
 const FontInfo = @import("../FontInfo.zig");
-const StructKeyMap = @import("../keys_maps.zig").StructKeyMap;
+const ComptimeKeyMaps = @import("../ComptimeKeyMaps.zig");
 
 // Just for tests
 const Doc = @import("Doc.zig");
