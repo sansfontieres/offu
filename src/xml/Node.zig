@@ -108,9 +108,7 @@ pub fn iterateArray(array: Node) !NodeIterator {
     const node = array.findChild(null);
 
     // Don’t unwrap node, empty arrays are OK
-    return NodeIterator{
-        .node = node,
-    };
+    return NodeIterator{ .node = node };
 }
 
 /// Find the first child node which is a key and returns a NodeIterator
@@ -119,18 +117,12 @@ pub fn iterateDict(dict: Node) !NodeIterator {
 
     if (node == null) return Error.NoDictKey;
 
-    return NodeIterator{
-        .node = node.?,
-    };
+    return NodeIterator{ .node = node.? };
 }
 
 /// Given a XML dict and a struct, maps the dict values into the
 /// fields of a struct, following the given key name mapping.
-pub fn xmlDictToStruct(
-    dict: Node,
-    allocator: std.mem.Allocator,
-    comptime T: anytype,
-) !T {
+pub fn xmlDictToStruct(dict: Node, allocator: std.mem.Allocator, comptime T: anytype) !T {
     var t = T{};
     const key_map = try ComptimeKeyMaps.get(T);
 
@@ -141,18 +133,13 @@ pub fn xmlDictToStruct(
     while (node_it.next()) |xml_field| {
         const value_node = node_it.next() orelse return Error.NoValue;
 
-        const field_content = xml_field.getContent() orelse {
-            return Error.EmptyElement;
-        };
+        const field_content = xml_field.getContent() orelse return Error.EmptyElement;
 
         if (key_map.get(field_content)) |key| {
             try dict_hm.putNoClobber(@tagName(key), value_node);
         } else {
             logger.err("Unknown key: {s}", .{field_content});
-            logger.err("See {s}:{d}", .{
-                xml_field.ptr.doc.*.URL,
-                xml_field.ptr.line,
-            });
+            logger.err("→ {s}:{d}", .{ xml_field.ptr.doc.*.URL, xml_field.ptr.line });
 
             return Error.UnknownKey;
         }
@@ -178,13 +165,9 @@ pub fn parseForStructField(
     const node_content = node.getContent().?;
 
     return switch (field.type) {
-        []const u8,
-        ?[]const u8,
-        => node_content,
+        []const u8, ?[]const u8 => node_content,
 
-        bool,
-        ?bool,
-        => blk: {
+        bool, ?bool => blk: {
             const node_name = node.getName();
 
             if (std.mem.eql(u8, node_name, "true")) {
@@ -193,26 +176,17 @@ pub fn parseForStructField(
                 break :blk false;
             } else {
                 logger.err("Unknown value: {s}", .{node_name});
-                logger.err("See {s}:{d}", .{
-                    node.ptr.doc.*.URL,
-                    node.ptr.line,
-                });
+                logger.err("→ {s}:{d}", .{ node.ptr.doc.*.URL, node.ptr.line });
 
                 return Error.UnknownValue;
             }
         },
 
-        isize,
-        ?isize,
-        => try std.fmt.parseInt(isize, node_content, 10),
+        isize, ?isize => try std.fmt.parseInt(isize, node_content, 10),
 
-        usize,
-        ?usize,
-        => try std.fmt.parseInt(usize, node_content, 10),
+        usize, ?usize => try std.fmt.parseInt(usize, node_content, 10),
 
-        f64,
-        ?f64,
-        => try std.fmt.parseFloat(f64, node_content),
+        f64, ?f64 => try std.fmt.parseFloat(f64, node_content),
 
         ?std.MultiArrayList(FontInfo.GaspRangeRecord) => blk: {
             const soa = try xmlArrayToSoa(node, allocator, FontInfo.GaspRangeRecord);
@@ -225,34 +199,22 @@ pub fn parseForStructField(
         },
 
         ?std.ArrayList(FontInfo.NameRecord) => blk: {
-            const array = try node.xmlArrayToArray(
-                allocator,
-                FontInfo.NameRecord,
-            );
+            const array = try node.xmlArrayToArray(allocator, FontInfo.NameRecord);
             break :blk array;
         },
 
-        ?FontInfo.WidthClass => blk: {
-            const bit: FontInfo.WidthClass = @enumFromInt(
-                try std.fmt.parseInt(u8, node.getContent().?, 10),
-            );
-
+        ?FontInfo.WidthClass => |T| blk: {
+            const bit: T = @enumFromInt(try std.fmt.parseInt(u8, node_content, 10));
             break :blk bit;
         },
 
         ?FontInfo.StyleMapStyle => blk: {
-            const value = try FontInfo.StyleMapStyle.fromString(
-                node.getContent().?,
-            );
+            const value = try FontInfo.StyleMapStyle.fromString(node_content);
             break :blk value;
         },
 
         ?std.ArrayList(FontInfo.Guideline) => blk: {
-            const array = try node.xmlArrayToArray(
-                allocator,
-                FontInfo.Guideline,
-            );
-
+            const array = try node.xmlArrayToArray(allocator, FontInfo.Guideline);
             break :blk array;
         },
 
@@ -267,8 +229,8 @@ pub fn parseForStructField(
 
             const array_len = array.items.len;
             if (array_len != 10) {
-                logger.err("Panose should be 10 element long: {d}", .{array_len});
-                logger.err("See {s}:{d}", .{ node.ptr.doc.*.URL, node.ptr.line });
+                logger.err("Panose should be 10 elements long: {d}", .{array_len});
+                logger.err("→ {s}:{d}", .{ node.ptr.doc.*.URL, node.ptr.line });
                 return Error.MalformedFile;
             }
 
@@ -292,8 +254,8 @@ pub fn parseForStructField(
 
             const array_len = array.items.len;
             if (array_len != 2) {
-                logger.err("FamilyClass should be 2 element long: {d}", .{array_len});
-                logger.err("See {s}:{d}", .{ node.ptr.doc.*.URL, node.ptr.line });
+                logger.err("FamilyClass should be 2 elements long: {d}", .{array_len});
+                logger.err("→ {s}:{d}", .{ node.ptr.doc.*.URL, node.ptr.line });
                 return Error.MalformedFile;
             }
 
@@ -323,31 +285,18 @@ pub fn parseForStructField(
             break :blk bit_set;
         },
 
-        std.ArrayList(isize),
-        ?std.ArrayList(isize),
-        => blk: {
-            const array = try node.xmlArrayToArray(
-                allocator,
-                isize,
-            );
+        std.ArrayList(isize), ?std.ArrayList(isize) => blk: {
+            const array = try node.xmlArrayToArray(allocator, isize);
             break :blk array;
         },
 
-        std.ArrayList(f64),
-        ?std.ArrayList(f64),
-        => blk: {
-            const array = try node.xmlArrayToArray(
-                allocator,
-                f64,
-            );
+        std.ArrayList(f64), ?std.ArrayList(f64) => blk: {
+            const array = try node.xmlArrayToArray(allocator, f64);
             break :blk array;
         },
 
-        ?FontInfo.PostScriptWindowsCharacterSet => blk: {
-            const bit: FontInfo.PostScriptWindowsCharacterSet = @enumFromInt(
-                try std.fmt.parseInt(usize, node.getContent().?, 10),
-            );
-
+        ?FontInfo.PostScriptWindowsCharacterSet => |T| blk: {
+            const bit: T = @enumFromInt(try std.fmt.parseInt(usize, node_content, 10));
             break :blk bit;
         },
 
@@ -356,10 +305,7 @@ pub fn parseForStructField(
 }
 
 /// Parses an enum specific bitset
-pub fn xmlArrayToIndexedBitSet(
-    node: Node,
-    T: anytype,
-) !T.BitSet {
+pub fn xmlArrayToIndexedBitSet(node: Node, T: anytype) !T.BitSet {
     var bit_set = T.BitSet.initFull();
 
     var node_it = try node.iterateArray();
@@ -373,10 +319,7 @@ pub fn xmlArrayToIndexedBitSet(
 }
 
 /// Parses an arrays of unsigned numbers to a bitset
-pub fn xmlArrayToBitSet(
-    node: Node,
-    T: anytype,
-) !T {
+pub fn xmlArrayToBitSet(node: Node, T: anytype) !T {
     var bit_set = T.initEmpty();
 
     var node_it = try node.iterateArray();
@@ -429,9 +372,7 @@ pub fn xmlArrayToArray(
                 try t.append(item_content);
             },
 
-            isize,
-            u8,
-            => |Type| {
+            isize, u8 => |Type| {
                 const t_number = try std.fmt.parseInt(Type, item_content, 10);
                 try t.append(t_number);
             },
@@ -441,10 +382,7 @@ pub fn xmlArrayToArray(
                 try t.append(t_float);
             },
 
-            FontInfo.Guideline,
-            FontInfo.NameRecord,
-            FontInfo.Selection,
-            => {
+            FontInfo.Guideline, FontInfo.NameRecord, FontInfo.Selection => {
                 const t_struct = try item.xmlDictToStruct(allocator, T);
                 try t.append(t_struct);
             },
