@@ -28,6 +28,7 @@ pub const ElementType = enum(c_uint) {
 };
 
 pub const Error = error{
+    MalformedFile,
     EmptyElement,
     NoDictKey,
     NoValue,
@@ -147,7 +148,12 @@ pub fn xmlDictToStruct(
         if (key_map.get(field_content)) |key| {
             try dict_hm.putNoClobber(@tagName(key), value_node);
         } else {
-            std.debug.print("{s}\n", .{field_content});
+            logger.err("Unknown key: {s}", .{field_content});
+            logger.err("See {s}:{d}", .{
+                xml_field.ptr.doc.*.URL,
+                xml_field.ptr.line,
+            });
+
             return Error.UnknownKey;
         }
     }
@@ -187,6 +193,12 @@ pub fn parseForStructField(
             } else if (std.mem.eql(u8, node_name, "false")) {
                 break :blk false;
             } else {
+                logger.err("Unknown value: {s}", .{node_name});
+                logger.err("See {s}:{d}", .{
+                    node.ptr.doc.*.URL,
+                    node.ptr.line,
+                });
+
                 return Error.UnknownValue;
             }
         },
@@ -254,7 +266,12 @@ pub fn parseForStructField(
             const array = try node.xmlArrayToArray(allocator, u8);
             defer array.deinit();
 
-            std.debug.assert(array.items.len == 10);
+            const array_len = array.items.len;
+            if (array_len != 10) {
+                logger.err("Panose should be 10 element long: {d}", .{array_len});
+                logger.err("See {s}:{d}", .{ node.ptr.doc.*.URL, node.ptr.line });
+                return Error.MalformedFile;
+            }
 
             break :blk FontInfo.Panose{
                 .family_type = array.items[0],
@@ -274,7 +291,12 @@ pub fn parseForStructField(
             const array = try node.xmlArrayToArray(allocator, u8);
             defer array.deinit();
 
-            std.debug.assert(array.items.len == 2);
+            const array_len = array.items.len;
+            if (array_len != 2) {
+                logger.err("FamilyClass should be 2 element long: {d}", .{array_len});
+                logger.err("See {s}:{d}", .{ node.ptr.doc.*.URL, node.ptr.line });
+                return Error.MalformedFile;
+            }
 
             break :blk FontInfo.FamilyClass{
                 .class = array.items[0],
