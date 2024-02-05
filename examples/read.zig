@@ -10,7 +10,15 @@ pub fn main() !void {
         if (deinit_status == .leak) @panic("Memory leak");
     }
 
-    var ufo = try offu.init("test_inputs/Untitled.ufo", allocator, .{});
+    var ufo_path: []const u8 = undefined;
+
+    if (std.os.argv.len == 2) {
+        ufo_path = std.mem.span(std.os.argv[1]);
+    } else {
+        ufo_path = "test_inputs/Untitled.ufo";
+    }
+
+    var ufo = try offu.init(ufo_path, allocator, .{});
     defer ufo.deinit(allocator);
 
     try ufo.validate();
