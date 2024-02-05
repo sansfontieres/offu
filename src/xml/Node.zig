@@ -3,6 +3,7 @@ pub const Node = @This();
 
 ptr: *libxml2.xmlNode,
 
+/// Representation of an xmlNode.type
 pub const ElementType = enum(c_uint) {
     element = 1,
     attribute = 2,
@@ -35,6 +36,7 @@ pub const Error = error{
     UnknownValue,
 };
 
+/// Returns the next xmlNode Element
 pub fn findNextElem(node: Node) ?Node {
     var it = @as(?*libxml2.xmlNode, @ptrCast(node.ptr.next));
     while (it != null) : (it = it.?.next) {
@@ -45,6 +47,7 @@ pub fn findNextElem(node: Node) ?Node {
     return null;
 }
 
+/// Returns the next child xmlNode Element (name optionnally specified)
 pub fn findChild(node: Node, key: ?[]const u8) ?Node {
     var it = @as(?*libxml2.xmlNode, @ptrCast(node.ptr.children));
     while (it != null) : (it = it.?.next) {
@@ -62,6 +65,7 @@ pub fn findChild(node: Node, key: ?[]const u8) ?Node {
     return null;
 }
 
+/// Returns the content of a Node (<key>This is the content</key>)
 pub fn getContent(node: Node) ?[]const u8 {
     const content = std.mem.span(libxml2.xmlNodeGetContent(node.ptr));
 
@@ -70,6 +74,7 @@ pub fn getContent(node: Node) ?[]const u8 {
     return content;
 }
 
+/// Returns the name of a Node (</this>)
 pub fn getName(node: Node) []const u8 {
     return std.mem.span(node.ptr.name);
 }

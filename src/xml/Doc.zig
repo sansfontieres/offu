@@ -3,6 +3,7 @@ pub const Doc = @This();
 
 ptr: *libxml2.xmlDoc,
 
+/// List of format types that Offu accepts
 pub const FormatType = enum {
     plist,
     glyph, // .glif files
@@ -14,6 +15,7 @@ pub const Error = error{
     WrongFile,
 };
 
+/// Given a string path, returns a Doc, a wrapper around xmlDocPtr
 pub fn fromFile(path: []const u8) !Doc {
     var buffer: [std.fs.MAX_PATH_BYTES]u8 = undefined;
     const final_path = try std.fmt.bufPrint(buffer[0..], "{s}\u{0}", .{path});
