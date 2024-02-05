@@ -10,8 +10,8 @@ The goal is to have a layer to build on to have less tools using Python.
 I can think of some light tasks as removing non-exporting glyphs,
 normalizing and running Q.A. tests on an UFO, etc.
 
-There are still some rough edges (it does not work at all!).  
-This library follows Zig master releases.
+There are still some rough edges (only partial reading is supported so far!).  
+This library follows Zig master releases, a nix flake helps with that.
 
 
 ## Features
