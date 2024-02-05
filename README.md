@@ -6,9 +6,9 @@ A library to parse and edit [Unified Font Objects][UFO] v3 written in Zig.
 [![][license]](https://git.sr.ht/~romi/offu/tree/front/item/LICENSE)
 
 
-The goal is to have a layer to build on to have less tools using Python.
-I can think of some light tasks as removing non-exporting glyphs,
-normalizing and running Q.A. tests on an UFO, etc.
+The goal is to have a layer to build on further tools like some light
+tasks as removing non-exporting glyphs, normalizing and running Q.A.
+tests, parsing the necessary informations to build fonts, etc.
 
 There are still some rough edges (only partial reading is supported so far!).  
 This library follows Zig master releases, a nix flake helps with that.
@@ -22,7 +22,7 @@ No Python.
 ## Installation
 
 ```sh
-zig fetch --save git+https://git.sr.ht/~romi/offu#front
+; zig fetch --save git+https://git.sr.ht/~romi/offu#front
 ```
 
 ```zig
@@ -49,6 +49,10 @@ pub fn build(b: *std.Build) void {
 ## Examples
 
 Browse the `examples` directory.
+
+```sh
+; zig build examples
+```
 
 
 ## Docs
