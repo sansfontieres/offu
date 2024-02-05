@@ -118,115 +118,6 @@ pub fn iterateDict(dict: Node) !NodeIterator {
     };
 }
 
-pub fn xmlArrayToIndexedBitSet(
-    node: Node,
-    T: anytype,
-) !T.BitSet {
-    var bit_set = T.BitSet.initFull();
-
-    var node_it = try node.iterateArray();
-    while (node_it.next()) |item| {
-        const item_content = item.getContent().?;
-        const bit: T = @enumFromInt(try std.fmt.parseInt(u8, item_content, 10));
-        bit_set.setPresent(bit, true);
-    }
-
-    return bit_set;
-}
-
-pub fn xmlArrayToBitSet(
-    node: Node,
-    T: anytype,
-) !T {
-    var bit_set = T.initEmpty();
-
-    var node_it = try node.iterateArray();
-    while (node_it.next()) |item| {
-        const item_content = item.getContent().?;
-        const bit = try std.fmt.parseInt(u8, item_content, 10);
-        bit_set.setValue(bit, true);
-    }
-
-    return bit_set;
-}
-
-pub fn xmlArrayToSoa(
-    node: Node,
-    allocator: std.mem.Allocator,
-    T: anytype,
-) !std.MultiArrayList(T) {
-    var soa = std.MultiArrayList(T){};
-
-    var node_it = try node.iterateArray();
-    while (node_it.next()) |item| {
-        switch (T) {
-            FontInfo.GaspRangeRecord => {
-                const t_struct = try item.xmlDictToStruct(allocator, T);
-                try soa.append(allocator, t_struct);
-            },
-
-            else => return Error.UnknownValue,
-        }
-    }
-    return soa;
-}
-
-pub fn xmlArrayToArray(
-    node: Node,
-    allocator: std.mem.Allocator,
-    T: anytype,
-) !std.ArrayList(T) {
-    var t = std.ArrayList(T).init(allocator);
-
-    var node_it = try node.iterateArray();
-
-    while (node_it.next()) |item| {
-        const item_content = item.getContent().?;
-
-        switch (T) {
-            []const u8 => {
-                try t.append(item_content);
-            },
-
-            isize,
-            u8,
-            => |Type| {
-                const t_number = try std.fmt.parseInt(Type, item_content, 10);
-                try t.append(t_number);
-            },
-
-            f64 => {
-                const t_float = try std.fmt.parseFloat(f64, item_content);
-                try t.append(t_float);
-            },
-
-            FontInfo.Guideline,
-            FontInfo.NameRecord,
-            FontInfo.Selection,
-            => {
-                const t_struct = try item.xmlDictToStruct(allocator, T);
-                try t.append(t_struct);
-            },
-
-            std.ArrayList([]const u8) => {
-                var array_node_it = try item.iterateArray();
-                while (array_node_it.next()) |array_item| {
-                    const array = try array_item.xmlArrayToArray(
-                        allocator,
-                        []const u8,
-                    );
-                    try t.append(array);
-                }
-            },
-
-            else => return Error.UnknownValue,
-        }
-    }
-
-    logger.debug("Parsed array of {} successfully", .{T});
-    return t;
-}
-
 /// Given a XML dict and a struct, maps the dict values into the
 /// fields of a struct, following the given key name mapping.
 pub fn xmlDictToStruct(
@@ -266,8 +157,8 @@ pub fn xmlDictToStruct(
     return t;
 }
 
-/// An internal function called recursively by dictToStruct to parse a
-/// string into the type of a struct field.
+/// An internal function called recursively by xmlDictToStruct to parse
+/// a string into the type of a struct field.
 pub fn parseForStructField(
     field: std.builtin.Type.StructField,
     node: Node,
@@ -436,6 +327,119 @@ pub fn parseForStructField(
 
         else => Error.UnknownFieldType,
     };
+}
+
+/// Parses an enum specific bitset
+pub fn xmlArrayToIndexedBitSet(
+    node: Node,
+    T: anytype,
+) !T.BitSet {
+    var bit_set = T.BitSet.initFull();
+
+    var node_it = try node.iterateArray();
+    while (node_it.next()) |item| {
+        const item_content = item.getContent().?;
+        const bit: T = @enumFromInt(try std.fmt.parseInt(u8, item_content, 10));
+        bit_set.setPresent(bit, true);
+    }
+
+    return bit_set;
+}
+
+/// Parses an arrays of unsigned numbers to a bitset
+pub fn xmlArrayToBitSet(
+    node: Node,
+    T: anytype,
+) !T {
+    var bit_set = T.initEmpty();
+
+    var node_it = try node.iterateArray();
+    while (node_it.next()) |item| {
+        const item_content = item.getContent().?;
+        const bit = try std.fmt.parseInt(u8, item_content, 10);
+        bit_set.setValue(bit, true);
+    }
+
+    return bit_set;
+}
+
+/// Parses an arrays of dicts into a Struct of Arrays
+pub fn xmlArrayToSoa(
+    node: Node,
+    allocator: std.mem.Allocator,
+    T: anytype,
+) !std.MultiArrayList(T) {
+    var soa = std.MultiArrayList(T){};
+
+    var node_it = try node.iterateArray();
+    while (node_it.next()) |item| {
+        switch (T) {
+            FontInfo.GaspRangeRecord => {
+                const t_struct = try item.xmlDictToStruct(allocator, T);
+                try soa.append(allocator, t_struct);
+            },
+
+            else => return Error.UnknownValue,
+        }
+    }
+    return soa;
+}
+
+/// Parses an arrays of an arbitrary type into an ArrayList
+pub fn xmlArrayToArray(
+    node: Node,
+    allocator: std.mem.Allocator,
+    T: anytype,
+) !std.ArrayList(T) {
+    var t = std.ArrayList(T).init(allocator);
+
+    var node_it = try node.iterateArray();
+
+    while (node_it.next()) |item| {
+        const item_content = item.getContent().?;
+
+        switch (T) {
+            []const u8 => {
+                try t.append(item_content);
+            },
+
+            isize,
+            u8,
+            => |Type| {
+                const t_number = try std.fmt.parseInt(Type, item_content, 10);
+                try t.append(t_number);
+            },
+
+            f64 => {
+                const t_float = try std.fmt.parseFloat(f64, item_content);
+                try t.append(t_float);
+            },
+
+            FontInfo.Guideline,
+            FontInfo.NameRecord,
+            FontInfo.Selection,
+            => {
+                const t_struct = try item.xmlDictToStruct(allocator, T);
+                try t.append(t_struct);
+            },
+
+            std.ArrayList([]const u8) => {
+                var array_node_it = try item.iterateArray();
+                while (array_node_it.next()) |array_item| {
+                    const array = try array_item.xmlArrayToArray(
+                        allocator,
+                        []const u8,
+                    );
+                    try t.append(array);
+                }
+            },
+
+            else => return Error.UnknownValue,
+        }
+    }
+
+    logger.debug("Parsed array of {} successfully", .{T});
+    return t;
 }
 
 const libxml2 = @import("../libxml2.zig");
