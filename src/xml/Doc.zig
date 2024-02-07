@@ -20,39 +20,34 @@ pub fn fromFile(path: []const u8) !Doc {
     var buffer: [std.fs.MAX_PATH_BYTES]u8 = undefined;
     const final_path = try std.fmt.bufPrint(buffer[0..], "{s}\u{0}", .{path});
 
-    const doc = libxml2.xmlReadFile(
-        final_path.ptr,
-        "utf-8",
-        0,
-    ) orelse return Error.ReadFile;
-
-    logger.info("Loaded {s} sucessfully", .{path});
-    return Doc{
-        .ptr = doc,
+    const doc = libxml2.xmlReadFile(final_path.ptr, "utf-8", 0) orelse {
+        logger.err("Could not read file: {s}", .{path});
+        return Error.ReadFile;
     };
+
+    logger.info("{s} was loaded sucessfully", .{path});
+    return Doc{ .ptr = doc };
 }
 
 pub fn deinit(doc: *Doc) void {
     libxml2.xmlFreeDoc(doc.ptr);
 
-    logger.debug("Deinited {} successfully", .{Doc});
+    logger.debug("{} was successfully deinited", .{Doc});
 }
 
 /// Wraps lixbml2.xmlDocGetRootElement
 pub fn getRootElement(doc: Doc) !Node {
-    const root_element = libxml2.xmlDocGetRootElement(doc.ptr) orelse {
-        return Error.NoRoot;
-    };
+    const root_element = libxml2.xmlDocGetRootElement(doc.ptr) orelse return Error.NoRoot;
+
     const root_name = std.mem.span(root_element.*.name);
+
     _ = std.meta.stringToEnum(FormatType, root_name) orelse {
         logger.err("Document is an unknown format: {s}", .{root_name});
         return Error.WrongFile;
     };
 
     logger.debug("Found root element: {s}", .{root_name});
-    return Node{
-        .ptr = root_element,
-    };
+    return Node{ .ptr = root_element };
 }
 
 /// Returns the path of the file of the current Doc

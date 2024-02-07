@@ -12,13 +12,10 @@ meta_info_doc: xml.Doc,
 pub const CreateOptions = struct {
     font_info_file: ?[]const u8 = null,
     meta_info_file: ?[]const u8 = null,
+    layer_contents_file: ?[]const u8 = null,
 };
 
-pub fn init(
-    path: []const u8,
-    allocator: std.mem.Allocator,
-    options: CreateOptions,
-) !Ufo {
+pub fn init(path: []const u8, allocator: std.mem.Allocator, options: CreateOptions) !Ufo {
     var dir = try std.fs.cwd().openDir(path, .{});
     defer dir.close();
 
@@ -33,10 +30,7 @@ pub fn init(
         if (options.font_info_file) |option| font_info_file = option;
 
         dir.access(font_info_file, .{}) catch {
-            logger.info(
-                "Failed to find {s}, skipping {}",
-                .{ font_info_file, FontInfo },
-            );
+            logger.info("Failed to find {s}, skipping {}", .{ font_info_file, FontInfo });
             break :blk null;
         };
 
@@ -57,10 +51,7 @@ pub fn init(
         var meta_info_file: []const u8 = MetaInfo.meta_info_file;
         if (options.meta_info_file) |option| meta_info_file = option;
 
-        const full_path = try std.fs.path.join(
-            allocator,
-            &[_][]const u8{ path, meta_info_file },
-        );
+        const full_path = try std.fs.path.join(allocator, &[_][]const u8{ path, meta_info_file });
         defer allocator.free(full_path);
 
         break :blk try xml.Doc.fromFile(full_path);
@@ -68,10 +59,7 @@ pub fn init(
 
     meta_info = try MetaInfo.initFromDoc(&meta_info_doc, allocator);
 
-    logger.info(
-        "Loaded {s} successfully",
-        .{path},
-    );
+    logger.info("{s} was successfully loaded", .{path});
     return Ufo{
         .path = path,
 
@@ -93,9 +81,7 @@ pub fn deinit(self: *Ufo, allocator: std.mem.Allocator) void {
 }
 
 pub fn validate(self: *Ufo) !void {
-    if (self.font_info) |*font_info| {
-        try font_info.validate();
-    }
+    if (self.font_info) |*font_info| try font_info.validate();
 
     try self.meta_info.validate();
 

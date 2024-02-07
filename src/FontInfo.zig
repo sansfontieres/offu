@@ -87,10 +87,10 @@ opentype_os2_panose: ?Panose = null,
 opentype_os2_family_class: ?FamilyClass = null,
 
 /// https://learn.microsoft.com/en-us/typography/opentype/spec/os2#ulunicoderange1-bits-031ulunicoderange2-bits-3263ulunicoderange3-bits-6495ulunicoderange4-bits-96127
-opentype_os2_unicode_ranges: ?std.bit_set.StaticBitSet(128) = null,
+opentype_os2_unicode_ranges: ?std.StaticBitSet(128) = null,
 
 /// https://learn.microsoft.com/en-us/typography/opentype/spec/os2#ulcodepagerange1-bits-031ulcodepagerange2-bits-3263
-opentype_os2_codepage_ranges: ?std.bit_set.StaticBitSet(64) = null,
+opentype_os2_codepage_ranges: ?std.StaticBitSet(64) = null,
 
 opentype_os2_typo_ascender: ?isize = null,
 opentype_os2_typo_descender: ?isize = null,
@@ -99,7 +99,7 @@ opentype_os2_win_ascent: ?usize = null,
 opentype_os2_win_descent: ?usize = null,
 
 /// https://learn.microsoft.com/en-us/typography/opentype/spec/os2#fstype
-opentype_os2_type: ?std.bit_set.StaticBitSet(15) = null,
+opentype_os2_type: ?std.StaticBitSet(15) = null,
 
 opentype_os2_subscript_x_size: ?isize = null,
 opentype_os2_subscript_y_size: ?isize = null,
@@ -170,7 +170,7 @@ postscript_nominal_width_x: ?f64 = null,
 
 postscript_weight_name: ?[]const u8 = null,
 postscript_default_character: ?[]const u8 = null,
-postscript_windows_character_set: ?PostScriptWindowsCharacterSet = null,
+postscript_windows_character_set: ?WindowsCharacterSet = null,
 
 macintosh_fond_family_id: ?isize = null,
 macintosh_fond_name: ?[]const u8 = null,
@@ -198,10 +198,7 @@ pub const StyleMapStyle = enum {
     @"bold italic",
 
     pub fn fromString(str: []const u8) !StyleMapStyle {
-        return std.meta.stringToEnum(
-            StyleMapStyle,
-            str,
-        ) orelse Error.InvalidStyleMapName;
+        return std.meta.stringToEnum(StyleMapStyle, str) orelse Error.InvalidStyleMapName;
     }
 
     pub fn toString(self: StyleMapStyle) []const u8 {
@@ -231,7 +228,7 @@ pub const GaspBehavior = enum(u8) {
     /// Use multi-axis smoothing with ClearType
     symmetric_smoothing,
 
-    pub const BitSet = std.enums.EnumSet(GaspBehavior);
+    pub const BitSet = std.EnumSet(GaspBehavior);
 };
 
 /// https://learn.microsoft.com/en-us/typography/opentype/spec/head
@@ -268,7 +265,7 @@ pub const HeadFlags = enum(u8) {
     // Should be cleared
     reserved = 15,
 
-    pub const BitSet = std.enums.EnumSet(HeadFlags);
+    pub const BitSet = std.EnumSet(HeadFlags);
 };
 
 /// Records should have a unique nameID, platformID, encodingID and
@@ -314,6 +311,12 @@ pub const WidthClass = enum(u8) {
 
     /// 200% of normal
     ultra_expanded,
+
+    pub fn fromString(str: []const u8) !WidthClass {
+        const i = try std.fmt.parseInt(u8, str, 10);
+
+        return std.meta.intToEnum(WidthClass, i);
+    }
 };
 
 /// Bits 0 (italic), 5 (bold) and 6 (regular) must not be set here.
@@ -351,7 +354,7 @@ pub const Selection = enum(u8) {
     /// Font contains oblique glyphs
     oblique,
 
-    pub const BitSet = std.enums.EnumSet(Selection);
+    pub const BitSet = std.EnumSet(Selection);
 };
 
 /// Two integers representing the IBM font class and font subclass of
@@ -392,7 +395,7 @@ pub const Panose = struct {
 };
 
 /// https://unifiedfontobject.org/versions/ufo3/fontinfo.plist/#postscriptwindowscharacterset-options
-pub const PostScriptWindowsCharacterSet = enum(usize) {
+pub const WindowsCharacterSet = enum(usize) {
     ansi = 1,
     default,
     symbol,
@@ -413,6 +416,12 @@ pub const PostScriptWindowsCharacterSet = enum(usize) {
     thai,
     eastern_european,
     oem,
+
+    pub fn fromString(str: []const u8) !WindowsCharacterSet {
+        const i = try std.fmt.parseInt(u8, str, 10);
+
+        return std.meta.intToEnum(WindowsCharacterSet, i);
+    }
 };
 
 /// https://unifiedfontobject.org/versions/ufo3/fontinfo.plist/#woff-metadata-unique-id-record
@@ -547,20 +556,16 @@ pub fn validate(self: *FontInfo) !void {
     if (self.opentype_gasp_range_records) |gasp_range_records| {
         const len = gasp_range_records.len;
         if (len > 0) {
-            const last_record = gasp_range_records.get(len - 1);
-            if (last_record.range_max_ppem != 0xFFFF) {
-                logger.err(
-                    "Out of {d} elements, the last record is not 0xFFFF",
-                    .{len},
-                );
+            const last_record = gasp_range_records.get(len - 1).range_max_ppem;
+            if (last_record != 0xFFFF) {
+                logger.err("The last record is not 0xFFFF: 0x{X}", .{last_record});
                 return Error.InvalidSentinelGaspRange;
             }
         }
     }
 
     if (self.units_per_em) |units_per_em| {
-        if (std.math.isPositiveZero(units_per_em))
-            return Error.UnitsPerEmNegative;
+        if (units_per_em < 0) return Error.UnitsPerEmNegative;
     }
 
     // TODO DATE
@@ -573,20 +578,14 @@ pub fn validate(self: *FontInfo) !void {
 
     if (self.opentype_os2_weight_class) |opentype_os2_weight_class| {
         if (opentype_os2_weight_class == 0 or opentype_os2_weight_class > 1000) {
-            logger.err(
-                "opentype_weight_class is invalid: {d}",
-                .{opentype_os2_weight_class},
-            );
+            logger.err("opentype_weight_class is invalid: {d}", .{opentype_os2_weight_class});
             return Error.WeightClassInvalid;
         }
     }
 
     if (self.opentype_os2_vendor_id) |opentype_os2_vendor_id| {
         if (opentype_os2_vendor_id.len > 4) {
-            logger.err(
-                "Vendor ID is more than 4 characters long: {d}",
-                .{opentype_os2_vendor_id.len},
-            );
+            logger.err("Vendor ID longer than 4 characters: {d}", .{opentype_os2_vendor_id.len});
             return Error.VendorIDTooLong;
         }
     }
@@ -597,30 +596,22 @@ pub fn validate(self: *FontInfo) !void {
 
     if (self.postscript_blue_values) |postscript_blue_values| {
         const capacity = postscript_blue_values.items.len;
-        if (capacity > 14 or capacity & 1 == 1) {
-            return Error.InvalidBlueValues;
-        }
+        if (capacity > 14 or capacity & 1 == 1) return Error.InvalidBlueValues;
     }
 
     if (self.postscript_other_blues) |postscript_other_blues| {
         const capacity = postscript_other_blues.items.len;
-        if (capacity > 10 or capacity & 1 == 1) {
-            return Error.InvalidOtherBlues;
-        }
+        if (capacity > 10 or capacity & 1 == 1) return Error.InvalidOtherBlues;
     }
 
     if (self.postscript_family_blues) |postscript_family_blues| {
         const capacity = postscript_family_blues.items.len;
-        if (capacity > 14 or capacity & 1 == 1) {
-            return Error.InvalidFamilyBlues;
-        }
+        if (capacity > 14 or capacity & 1 == 1) return Error.InvalidFamilyBlues;
     }
 
     if (self.postscript_family_other_blues) |postscript_family_other_blues| {
         const capacity = postscript_family_other_blues.items.len;
-        if (capacity > 10 or capacity & 1 == 1) {
-            return Error.InvalidFamilyOtherBlues;
-        }
+        if (capacity > 10 or capacity & 1 == 1) return Error.InvalidFamilyOtherBlues;
     }
 
     // TODO: Guidelines colors
@@ -667,9 +658,7 @@ pub fn deinit(self: *FontInfo, allocator: std.mem.Allocator) void {
     }
 
     if (self.woff_metadata_license) |woff_metadata_license| {
-        if (woff_metadata_license.text) |text| {
-            text.deinit();
-        }
+        if (woff_metadata_license.text) |text| text.deinit();
     }
 
     if (self.woff_metadata_copyright) |woff_metadata_copyright| {
@@ -680,9 +669,7 @@ pub fn deinit(self: *FontInfo, allocator: std.mem.Allocator) void {
         woff_metadata_trademark.text.deinit();
     }
 
-    if (self.guidelines) |guidelines| {
-        guidelines.deinit();
-    }
+    if (self.guidelines) |guidelines| guidelines.deinit();
 
     if (self.woff_metadata_extensions) |*woff_metadata_extensions| {
         for (
@@ -698,17 +685,15 @@ pub fn deinit(self: *FontInfo, allocator: std.mem.Allocator) void {
         woff_metadata_extensions.deinit(allocator);
     }
 
-    logger.debug("Deinited {} successfully", .{FontInfo});
+    logger.debug("{} was successfully deinited", .{FontInfo});
 }
 
 // This is medieval
 pub fn initFromDoc(doc: *xml.Doc, allocator: std.mem.Allocator) !FontInfo {
     const root_node = try doc.getRootElement();
-    const dict: ?xml.Node = root_node.findChild("dict") orelse {
-        return Error.MalformedFile;
-    };
+    const dict = root_node.findChild("dict") orelse return Error.MalformedFile;
 
-    return try dict.?.xmlDictToStruct(allocator, FontInfo);
+    return try dict.dictToStruct(allocator, FontInfo);
 }
 
 const std = @import("std");
@@ -719,14 +704,14 @@ pub const font_info_file = "fontinfo.plist";
 
 test "Info doesn’t throw errors by default" {
     // And its not a small struct
-    var info: FontInfo = .{};
-    try info.validate();
+    var font_info: FontInfo = .{};
+    try font_info.validate();
 }
 
-test "Info deinits all kind of data structures" {
+test "FontInfo deinits all kind of data structures" {
     const test_allocator = std.testing.allocator;
-    var info: FontInfo = .{};
-    defer info.deinit(test_allocator);
+    var font_info: FontInfo = .{};
+    defer font_info.deinit(test_allocator);
 
     // info.opentype_os2_unicode_ranges = std.ArrayList(u8).init(test_allocator);
     // try info.opentype_os2_unicode_ranges.?.append(12);
@@ -738,20 +723,20 @@ test "Info deinits all kind of data structures" {
     gasp_range_record.range_gasp_behavior.toggle(.gridfit);
     gasp_range_record.range_gasp_behavior.toggle(.dogray);
 
-    info.opentype_gasp_range_records = std.MultiArrayList(GaspRangeRecord){};
-    try info.opentype_gasp_range_records.?.append(test_allocator, gasp_range_record);
+    font_info.opentype_gasp_range_records = std.MultiArrayList(GaspRangeRecord){};
+    try font_info.opentype_gasp_range_records.?.append(test_allocator, gasp_range_record);
 
-    info.opentype_os2_family_class = .{ .class = 1, .sub_class = 2 };
+    font_info.opentype_os2_family_class = .{ .class = 1, .sub_class = 2 };
 
-    try info.validate();
+    try font_info.validate();
 }
 
 test "validate() gasp_rang_record" {
     const test_allocator = std.testing.allocator;
-    var info: FontInfo = .{};
-    defer info.deinit(test_allocator);
+    var font_info: FontInfo = .{};
+    defer font_info.deinit(test_allocator);
 
-    info.opentype_gasp_range_records = std.MultiArrayList(GaspRangeRecord){};
+    font_info.opentype_gasp_range_records = std.MultiArrayList(GaspRangeRecord){};
 
     var gasp_range_record_1: GaspRangeRecord = .{
         .range_max_ppem = 1,
@@ -759,15 +744,9 @@ test "validate() gasp_rang_record" {
     };
     gasp_range_record_1.range_gasp_behavior.toggle(.gridfit);
 
-    try info.opentype_gasp_range_records.?.append(
-        test_allocator,
-        gasp_range_record_1,
-    );
+    try font_info.opentype_gasp_range_records.?.append(test_allocator, gasp_range_record_1);
 
-    try std.testing.expectError(
-        Error.InvalidSentinelGaspRange,
-        info.validate(),
-    );
+    try std.testing.expectError(Error.InvalidSentinelGaspRange, font_info.validate());
 
     var gasp_range_record_2: GaspRangeRecord = .{
         .range_max_ppem = 0xFFFF,
@@ -775,12 +754,9 @@ test "validate() gasp_rang_record" {
     };
     gasp_range_record_2.range_gasp_behavior.toggle(.gridfit);
 
-    try info.opentype_gasp_range_records.?.append(
-        test_allocator,
-        gasp_range_record_2,
-    );
+    try font_info.opentype_gasp_range_records.?.append(test_allocator, gasp_range_record_2);
 
-    try info.validate();
+    try font_info.validate();
 }
 
 test "deserialize" {

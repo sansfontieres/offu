@@ -56,33 +56,29 @@ pub fn findChild(node: Node, key: ?[]const u8) ?Node {
         if (child_node.getElementType() != .element) continue;
 
         if (key) |name| {
-            if (std.mem.eql(u8, name, child_node.getName())) {
-                return child_node;
-            }
-        } else {
-            return child_node;
-        }
+            if (mem.eql(u8, name, child_node.getName())) return child_node;
+        } else return child_node;
     }
     return null;
 }
 
 /// Returns the content of a Node (<key>This is the content</key>)
 pub fn getContent(node: Node) ?[]const u8 {
-    const content = std.mem.span(libxml2.xmlNodeGetContent(node.ptr));
+    const content = mem.span(libxml2.xmlNodeGetContent(node.ptr));
 
-    if (std.mem.eql(u8, content, "\u{0}")) return null;
+    if (mem.eql(u8, content, "\u{0}")) return null;
 
     return content;
 }
 
 /// Returns the name of a Node (</this>)
 pub fn getName(node: Node) []const u8 {
-    return std.mem.span(node.ptr.name);
+    return mem.span(node.ptr.name);
 }
 
 /// Get the type of an XML element (comment, attribute, etc.).
 pub fn getElementType(node: Node) ?ElementType {
-    return @enumFromInt(node.ptr.type);
+    return std.meta.intToEnum(ElementType, node.ptr.type) catch return null;
 }
 
 // TODO: Create an AttrIterator for .glif
@@ -93,11 +89,11 @@ pub const NodeIterator = struct {
         while (it.node) |node| {
             if (node.getElementType() != .element) continue;
 
-            const ret = node;
             var next_node: ?Node = null;
             next_node = node.findNextElem();
             it.node = next_node;
-            return ret;
+
+            return node;
         }
         return null;
     }
@@ -122,7 +118,7 @@ pub fn iterateDict(dict: Node) !NodeIterator {
 
 /// Given a XML dict and a struct, maps the dict values into the
 /// fields of a struct, following the given key name mapping.
-pub fn xmlDictToStruct(dict: Node, allocator: std.mem.Allocator, comptime T: anytype) !T {
+pub fn dictToStruct(dict: Node, allocator: Allocator, comptime T: anytype) !T {
     var t = T{};
     const key_map = try ComptimeKeyMaps.get(T);
 
@@ -140,28 +136,23 @@ pub fn xmlDictToStruct(dict: Node, allocator: std.mem.Allocator, comptime T: any
         } else {
             logger.err("Unknown key: {s}", .{field_content});
             logger.err("→ {s}:{d}", .{ xml_field.ptr.doc.*.URL, xml_field.ptr.line });
-
             return Error.UnknownKey;
         }
     }
 
     inline for (std.meta.fields(T)) |field| {
         if (dict_hm.get(field.name)) |value| {
-            @field(t, field.name) = try parseForStructField(field, value, allocator);
+            @field(t, field.name) = try value.parse(field, allocator);
         }
     }
 
-    logger.debug("Parsed {} successfully", .{T});
+    logger.debug("{} was successfully parsed", .{T});
     return t;
 }
 
-/// An internal function called recursively by xmlDictToStruct to parse
-/// a string into the type of a struct field.
-pub fn parseForStructField(
-    field: std.builtin.Type.StructField,
-    node: Node,
-    allocator: std.mem.Allocator,
-) !field.type {
+/// An internal function called recursively by dictToStruct to parse a
+/// Node into the type of a struct field.
+pub fn parse(node: Node, field: StructField, allocator: Allocator) !field.type {
     const node_content = node.getContent().?;
 
     return switch (field.type) {
@@ -170,64 +161,49 @@ pub fn parseForStructField(
         bool, ?bool => blk: {
             const node_name = node.getName();
 
-            if (std.mem.eql(u8, node_name, "true")) {
+            if (mem.eql(u8, node_name, "true")) {
                 break :blk true;
-            } else if (std.mem.eql(u8, node_name, "false")) {
+            } else if (mem.eql(u8, node_name, "false")) {
                 break :blk false;
             } else {
                 logger.err("Unknown value: {s}", .{node_name});
                 logger.err("→ {s}:{d}", .{ node.ptr.doc.*.URL, node.ptr.line });
-
                 return Error.UnknownValue;
             }
         },
 
-        isize, ?isize => try std.fmt.parseInt(isize, node_content, 10),
+        isize, ?isize => try fmt.parseInt(isize, node_content, 10),
+        usize, ?usize => try fmt.parseInt(usize, node_content, 10),
+        f64, ?f64 => try fmt.parseFloat(f64, node_content),
 
-        usize, ?usize => try std.fmt.parseInt(usize, node_content, 10),
+        ?std.MultiArrayList(FontInfo.GaspRangeRecord) => try node.arrayToSoa(
+            allocator,
+            FontInfo.GaspRangeRecord,
+        ),
 
-        f64, ?f64 => try std.fmt.parseFloat(f64, node_content),
+        FontInfo.GaspBehavior.BitSet => try node.arrayToEnumSet(FontInfo.GaspBehavior),
 
-        ?std.MultiArrayList(FontInfo.GaspRangeRecord) => blk: {
-            const soa = try xmlArrayToSoa(node, allocator, FontInfo.GaspRangeRecord);
-            break :blk soa;
-        },
+        ?std.ArrayList(FontInfo.NameRecord) => try node.arrayToArrayList(
+            allocator,
+            FontInfo.NameRecord,
+        ),
 
-        FontInfo.GaspBehavior.BitSet => blk: {
-            const bit_set = try xmlArrayToIndexedBitSet(node, FontInfo.GaspBehavior);
-            break :blk bit_set;
-        },
+        ?FontInfo.WidthClass => try FontInfo.WidthClass.fromString(node_content),
+        ?FontInfo.StyleMapStyle => try FontInfo.StyleMapStyle.fromString(node_content),
 
-        ?std.ArrayList(FontInfo.NameRecord) => blk: {
-            const array = try node.xmlArrayToArray(allocator, FontInfo.NameRecord);
-            break :blk array;
-        },
+        ?std.ArrayList(FontInfo.Guideline) => try node.arrayToArrayList(
+            allocator,
+            FontInfo.Guideline,
+        ),
 
-        ?FontInfo.WidthClass => |T| blk: {
-            const bit: T = @enumFromInt(try std.fmt.parseInt(u8, node_content, 10));
-            break :blk bit;
-        },
-
-        ?FontInfo.StyleMapStyle => blk: {
-            const value = try FontInfo.StyleMapStyle.fromString(node_content);
-            break :blk value;
-        },
-
-        ?std.ArrayList(FontInfo.Guideline) => blk: {
-            const array = try node.xmlArrayToArray(allocator, FontInfo.Guideline);
-            break :blk array;
-        },
-
-        ?FontInfo.Selection.BitSet => blk: {
-            const bit_set = try xmlArrayToIndexedBitSet(node, FontInfo.Selection);
-            break :blk bit_set;
-        },
+        ?FontInfo.Selection.BitSet => try node.arrayToEnumSet(FontInfo.Selection),
 
         ?FontInfo.Panose => blk: {
-            const array = try node.xmlArrayToArray(allocator, u8);
+            const array = try node.arrayToArrayList(allocator, u8);
             defer array.deinit();
 
-            const array_len = array.items.len;
+            const items = array.items;
+            const array_len = items.len;
             if (array_len != 10) {
                 logger.err("Panose should be 10 elements long: {d}", .{array_len});
                 logger.err("→ {s}:{d}", .{ node.ptr.doc.*.URL, node.ptr.line });
@@ -235,83 +211,58 @@ pub fn parseForStructField(
             }
 
             break :blk FontInfo.Panose{
-                .family_type = array.items[0],
-                .serif_style = array.items[1],
-                .weight = array.items[2],
-                .proportion = array.items[3],
-                .contrast = array.items[4],
-                .stroke_variation = array.items[5],
-                .arm_style = array.items[6],
-                .letterform = array.items[7],
-                .midline = array.items[8],
-                .x_height = array.items[9],
+                .family_type = items[0],
+                .serif_style = items[1],
+                .weight = items[2],
+                .proportion = items[3],
+                .contrast = items[4],
+                .stroke_variation = items[5],
+                .arm_style = items[6],
+                .letterform = items[7],
+                .midline = items[8],
+                .x_height = items[9],
             };
         },
 
         ?FontInfo.FamilyClass => blk: {
-            const array = try node.xmlArrayToArray(allocator, u8);
+            const array = try node.arrayToArrayList(allocator, u8);
             defer array.deinit();
 
-            const array_len = array.items.len;
+            const items = array.items;
+            const array_len = items.len;
             if (array_len != 2) {
                 logger.err("FamilyClass should be 2 elements long: {d}", .{array_len});
                 logger.err("→ {s}:{d}", .{ node.ptr.doc.*.URL, node.ptr.line });
                 return Error.MalformedFile;
             }
 
-            break :blk FontInfo.FamilyClass{
-                .class = array.items[0],
-                .sub_class = array.items[1],
-            };
+            break :blk FontInfo.FamilyClass{ .class = items[0], .sub_class = items[1] };
         },
 
-        ?FontInfo.HeadFlags.BitSet => blk: {
-            const bit_set = try xmlArrayToIndexedBitSet(node, FontInfo.HeadFlags);
-            break :blk bit_set;
-        },
+        ?FontInfo.HeadFlags.BitSet => try node.arrayToEnumSet(FontInfo.HeadFlags),
 
-        ?std.bit_set.StaticBitSet(128) => blk: {
-            const bit_set = try xmlArrayToBitSet(node, std.bit_set.StaticBitSet(128));
-            break :blk bit_set;
-        },
+        ?std.StaticBitSet(128) => try node.arrayToBitSet(128),
+        ?std.StaticBitSet(64) => try node.arrayToBitSet(64),
+        ?std.StaticBitSet(15) => try node.arrayToBitSet(15),
 
-        ?std.bit_set.StaticBitSet(64) => blk: {
-            const bit_set = try xmlArrayToBitSet(node, std.bit_set.StaticBitSet(64));
-            break :blk bit_set;
-        },
+        ?std.ArrayList(isize) => try node.arrayToArrayList(allocator, isize),
+        ?std.ArrayList(f64) => try node.arrayToArrayList(allocator, f64),
 
-        ?std.bit_set.StaticBitSet(15) => blk: {
-            const bit_set = try xmlArrayToBitSet(node, std.bit_set.StaticBitSet(15));
-            break :blk bit_set;
-        },
-
-        std.ArrayList(isize), ?std.ArrayList(isize) => blk: {
-            const array = try node.xmlArrayToArray(allocator, isize);
-            break :blk array;
-        },
-
-        std.ArrayList(f64), ?std.ArrayList(f64) => blk: {
-            const array = try node.xmlArrayToArray(allocator, f64);
-            break :blk array;
-        },
-
-        ?FontInfo.PostScriptWindowsCharacterSet => |T| blk: {
-            const bit: T = @enumFromInt(try std.fmt.parseInt(usize, node_content, 10));
-            break :blk bit;
-        },
+        ?FontInfo.WindowsCharacterSet => try FontInfo.WindowsCharacterSet.fromString(node_content),
 
         else => Error.UnknownFieldType,
     };
 }
 
 /// Parses an enum specific bitset
-pub fn xmlArrayToIndexedBitSet(node: Node, T: anytype) !T.BitSet {
+pub fn arrayToEnumSet(node: Node, T: anytype) !T.BitSet {
     var bit_set = T.BitSet.initFull();
 
     var node_it = try node.iterateArray();
     while (node_it.next()) |item| {
         const item_content = item.getContent().?;
-        const bit: T = @enumFromInt(try std.fmt.parseInt(u8, item_content, 10));
+        const i = try fmt.parseInt(u8, item_content, 10);
+        const bit = try std.meta.intToEnum(T, i);
         bit_set.setPresent(bit, true);
     }
 
@@ -319,13 +270,13 @@ pub fn xmlArrayToIndexedBitSet(node: Node, T: anytype) !T.BitSet {
 }
 
 /// Parses an arrays of unsigned numbers to a bitset
-pub fn xmlArrayToBitSet(node: Node, T: anytype) !T {
-    var bit_set = T.initEmpty();
+pub fn arrayToBitSet(node: Node, comptime size: usize) !std.StaticBitSet(size) {
+    var bit_set = std.StaticBitSet(size).initEmpty();
 
     var node_it = try node.iterateArray();
     while (node_it.next()) |item| {
         const item_content = item.getContent().?;
-        const bit = try std.fmt.parseInt(u8, item_content, 10);
+        const bit = try fmt.parseInt(u8, item_content, 10);
         bit_set.setValue(bit, true);
     }
 
@@ -333,19 +284,15 @@ pub fn xmlArrayToBitSet(node: Node, T: anytype) !T {
 }
 
 /// Parses an arrays of dicts into a Struct of Arrays
-pub fn xmlArrayToSoa(
-    node: Node,
-    allocator: std.mem.Allocator,
-    T: anytype,
-) !std.MultiArrayList(T) {
+pub fn arrayToSoa(node: Node, allocator: Allocator, T: anytype) !std.MultiArrayList(T) {
     var soa = std.MultiArrayList(T){};
 
     var node_it = try node.iterateArray();
     while (node_it.next()) |item| {
         switch (T) {
             FontInfo.GaspRangeRecord => {
-                const t_struct = try item.xmlDictToStruct(allocator, T);
-                try soa.append(allocator, t_struct);
+                const s = try item.dictToStruct(allocator, T);
+                try soa.append(allocator, s);
             },
 
             else => return Error.UnknownValue,
@@ -355,45 +302,29 @@ pub fn xmlArrayToSoa(
 }
 
 /// Parses an arrays of an arbitrary type into an ArrayList
-pub fn xmlArrayToArray(
-    node: Node,
-    allocator: std.mem.Allocator,
-    T: anytype,
-) !std.ArrayList(T) {
+pub fn arrayToArrayList(node: Node, allocator: Allocator, T: anytype) !std.ArrayList(T) {
     var t = std.ArrayList(T).init(allocator);
 
     var node_it = try node.iterateArray();
-
     while (node_it.next()) |item| {
         const item_content = item.getContent().?;
 
         switch (T) {
-            []const u8 => {
-                try t.append(item_content);
-            },
+            []const u8 => try t.append(item_content),
 
-            isize, u8 => |Type| {
-                const t_number = try std.fmt.parseInt(Type, item_content, 10);
-                try t.append(t_number);
-            },
+            isize, u8 => |I| try t.append(try fmt.parseInt(I, item_content, 10)),
 
-            f64 => {
-                const t_float = try std.fmt.parseFloat(f64, item_content);
-                try t.append(t_float);
-            },
+            f64 => try t.append(try fmt.parseFloat(f64, item_content)),
 
-            FontInfo.Guideline, FontInfo.NameRecord, FontInfo.Selection => {
-                const t_struct = try item.xmlDictToStruct(allocator, T);
-                try t.append(t_struct);
-            },
+            FontInfo.Guideline,
+            FontInfo.NameRecord,
+            FontInfo.Selection,
+            => try t.append(try item.dictToStruct(allocator, T)),
 
             std.ArrayList([]const u8) => {
                 var array_node_it = try item.iterateArray();
                 while (array_node_it.next()) |array_item| {
-                    const array = try array_item.xmlArrayToArray(
-                        allocator,
-                        []const u8,
-                    );
+                    const array = try array_item.arrayToArrayList(allocator, []const u8);
                     try t.append(array);
                 }
             },
@@ -402,12 +333,17 @@ pub fn xmlArrayToArray(
         }
     }
 
-    logger.debug("Parsed array of {} successfully", .{T});
+    logger.debug("Array of {} was successfully parsed", .{T});
     return t;
 }
 
 const libxml2 = @import("../libxml2.zig");
 const std = @import("std");
+const mem = std.mem;
+const fmt = std.fmt;
+const Allocator = mem.Allocator;
+const StructField = std.builtin.Type.StructField;
+
 const logger = @import("../Logger.zig").scopped(.xml_node);
 const FontInfo = @import("../FontInfo.zig");
 const ComptimeKeyMaps = @import("../ComptimeKeyMaps.zig");
@@ -455,8 +391,5 @@ test "dictToStruct" {
     var node: ?Node = try doc.getRootElement();
     node = node.?.findChild("dict");
 
-    _ = try node.?.xmlDictToStruct(
-        test_allocator,
-        MetaInfo,
-    );
+    _ = try node.?.dictToStruct(test_allocator, MetaInfo);
 }

@@ -16,9 +16,7 @@ pub fn build(b: *std.Build) void {
 
     const offu_mod = b.addModule(
         "offu",
-        .{
-            .root_source_file = .{ .path = "src/offu.zig" },
-        },
+        .{ .root_source_file = .{ .path = "src/offu.zig" } },
     );
     offu_mod.linkLibrary(libxml2_dep.artifact("xml2"));
 
