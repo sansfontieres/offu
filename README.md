@@ -6,9 +6,9 @@ A library to parse and edit [Unified Font Objects][UFO] v3 written in Zig.
 [![][license]](https://git.sr.ht/~romi/offu/tree/front/item/LICENSE)
 
 
-The goal is to have a layer to build on further tools like some light
-tasks as removing non-exporting glyphs, normalizing and running Q.A.
-tests, parsing the necessary informations to build fonts, etc.
+The goal is to have a library to rely on for tools such as a
+non-exporting glyphs remover, a UFO normalizer, running Q.A. tests, or
+parsing the necessary information to build fonts, etc.
 
 There are still some rough edges (only partial reading is supported so far!).  
 This library follows Zig master releases, a nix flake helps with that.
