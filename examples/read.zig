@@ -27,4 +27,37 @@ pub fn main() !void {
     std.log.info("Previous UFO Creator: {s}", .{ufo.meta_info.creator.?});
     ufo.meta_info.updateCreator();
     std.log.info("Current UFO Creator: {s}", .{ufo.meta_info.creator.?});
+
+    var glif_count: usize = 0;
+    const layers = ufo.layer_contents.layers;
+
+    std.log.info("This UFO have {} layers", .{layers.len});
+
+    for (layers.items(.glyphs), layers.items(.name)) |glyphs, name| {
+        const glyphs_count = glyphs.count();
+        glif_count += glyphs_count;
+        std.log.info("Layer {s} have {d} glifs", .{ name, glyphs_count });
+    }
+
+    std.log.info("Accross layers, there is {d} glifs", .{glif_count});
+
+    for (layers.items(.glyphs), layers.items(.name)) |glyphs, name| {
+        std.log.info("Layer {s} have the following glifs:", .{name});
+        var glyphs_it = glyphs.valueIterator();
+
+        while (glyphs_it.next()) |glif| {
+            var codepoint_it = glif.codepoints.keyIterator();
+            const first_codepoint = codepoint_it.next();
+
+            if (first_codepoint) |cp| {
+                std.log.info(
+                    "{s} (U+{X}) | width: {d}, height: {d}",
+                    .{ glif.name, cp.*, glif.advance.width, glif.advance.height },
+                );
+            } else std.log.info(
+                "{s} (no codepoint) | width: {d}, height: {d}",
+                .{ glif.name, glif.advance.width, glif.advance.height },
+            );
+        }
+    }
 }
