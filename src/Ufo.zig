@@ -43,7 +43,7 @@ pub fn init(path: []const u8, allocator: std.mem.Allocator, options: CreateOptio
         break :blk try xml.Doc.fromFile(full_path);
     };
 
-    if (font_info_doc) |*doc| {
+    if (font_info_doc) |doc| {
         font_info = try FontInfo.initFromDoc(doc, allocator);
     }
 
@@ -57,7 +57,7 @@ pub fn init(path: []const u8, allocator: std.mem.Allocator, options: CreateOptio
         break :blk try xml.Doc.fromFile(full_path);
     };
 
-    meta_info = try MetaInfo.initFromDoc(&meta_info_doc, allocator);
+    meta_info = try MetaInfo.initFromDoc(meta_info_doc, allocator);
 
     logger.info("{s} was successfully loaded", .{path});
     return Ufo{

@@ -45,7 +45,7 @@ pub fn updateCreator(self: *MetaInfo) void {
 }
 
 // This is medieval
-pub fn initFromDoc(doc: *xml.Doc, allocator: std.mem.Allocator) !MetaInfo {
+pub fn initFromDoc(doc: xml.Doc, allocator: std.mem.Allocator) !MetaInfo {
     const root_node = try doc.getRootElement();
     const dict = root_node.findChild("dict") orelse return Error.MalformedFile;
 
@@ -54,7 +54,7 @@ pub fn initFromDoc(doc: *xml.Doc, allocator: std.mem.Allocator) !MetaInfo {
 
 const std = @import("std");
 pub const xml = @import("xml.zig");
-const logger = @import("Logger.zig").scopped(.metainfo);
+const logger = @import("Logger.zig").scopped(.MetaInfo);
 
 const meta_info_default_creator = "com.sansfontieres.offu";
 
@@ -66,7 +66,7 @@ test "deserialize" {
     var doc = try xml.Doc.fromFile("test_inputs/Untitled.ufo/metainfo.plist");
     defer doc.deinit();
 
-    var meta_info = try initFromDoc(&doc, test_allocator);
+    var meta_info = try initFromDoc(doc, test_allocator);
 
     try std.testing.expectEqualStrings("com.github.fonttools.ufoLib", meta_info.creator.?);
 

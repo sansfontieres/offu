@@ -689,7 +689,7 @@ pub fn deinit(self: *FontInfo, allocator: std.mem.Allocator) void {
 }
 
 // This is medieval
-pub fn initFromDoc(doc: *xml.Doc, allocator: std.mem.Allocator) !FontInfo {
+pub fn initFromDoc(doc: xml.Doc, allocator: std.mem.Allocator) !FontInfo {
     const root_node = try doc.getRootElement();
     const dict = root_node.findChild("dict") orelse return Error.MalformedFile;
 
@@ -698,7 +698,7 @@ pub fn initFromDoc(doc: *xml.Doc, allocator: std.mem.Allocator) !FontInfo {
 
 const std = @import("std");
 const xml = @import("xml.zig");
-const logger = @import("Logger.zig").scopped(.fontinfo);
+const logger = @import("Logger.zig").scopped(.FontInfo);
 
 pub const font_info_file = "fontinfo.plist";
 
@@ -768,7 +768,7 @@ test "deserialize" {
     // var doc = try xml.Doc.fromFile("fontinfo_1.plist");
     defer doc.deinit();
 
-    var font_info = try initFromDoc(&doc, test_allocator);
+    var font_info = try initFromDoc(doc, test_allocator);
     defer font_info.deinit(test_allocator);
 
     try font_info.validate();

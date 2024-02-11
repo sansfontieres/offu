@@ -6,8 +6,6 @@
 //!
 //! [Unified Font Object]: https://unifiedfontobject.org/versions/ufo3/
 
-const std = @import("std");
-
 pub const init = Ufo.init;
 pub const deinit = Ufo.deinit;
 
@@ -27,4 +25,4 @@ pub const LayerContents = @import("LayerContents.zig");
 // https://adobe-type-tools.github.io/afdko/OpenTypeFeatureFileSpecification.html
 // pub const Feature = @import("Feature.zig");
 
-pub const logger = @import("Logger.zig").scopped(.offu);
+pub const logger = @import("Logger.zig").scopped(.Offu);

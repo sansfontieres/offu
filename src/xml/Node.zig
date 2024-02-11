@@ -122,10 +122,10 @@ pub fn dictToStruct(dict: Node, allocator: Allocator, comptime T: anytype) !T {
     var t = T{};
     const key_map = try ComptimeKeyMaps.get(T);
 
-    var node_it = try dict.iterateDict();
     var dict_hm = std.StringHashMap(Node).init(allocator);
     defer dict_hm.deinit();
 
+    var node_it = try dict.iterateDict();
     while (node_it.next()) |xml_field| {
         const value_node = node_it.next() orelse return Error.NoValue;
 
@@ -134,8 +134,9 @@ pub fn dictToStruct(dict: Node, allocator: Allocator, comptime T: anytype) !T {
         if (key_map.get(field_content)) |key| {
             try dict_hm.putNoClobber(@tagName(key), value_node);
         } else {
+            const path = try Doc.fromNode(xml_field).getPath(allocator);
             logger.err("Unknown key: {s}", .{field_content});
-            logger.err("→ {s}:{d}", .{ xml_field.ptr.doc.*.URL, xml_field.ptr.line });
+            logger.err("→ {s}:{d}", .{ path, xml_field.ptr.line });
             return Error.UnknownKey;
         }
     }
@@ -166,8 +167,9 @@ pub fn parse(node: Node, field: StructField, allocator: Allocator) !field.type {
             } else if (mem.eql(u8, node_name, "false")) {
                 break :blk false;
             } else {
+                const path = try Doc.fromNode(node).getPath(allocator);
                 logger.err("Unknown value: {s}", .{node_name});
-                logger.err("→ {s}:{d}", .{ node.ptr.doc.*.URL, node.ptr.line });
+                logger.err("→ {s}:{d}", .{ path, node.ptr.line });
                 return Error.UnknownValue;
             }
         },
@@ -205,8 +207,9 @@ pub fn parse(node: Node, field: StructField, allocator: Allocator) !field.type {
             const items = array.items;
             const array_len = items.len;
             if (array_len != 10) {
+                const path = try Doc.fromNode(node).getPath(allocator);
                 logger.err("Panose should be 10 elements long: {d}", .{array_len});
-                logger.err("→ {s}:{d}", .{ node.ptr.doc.*.URL, node.ptr.line });
+                logger.err("→ {s}:{d}", .{ path, node.ptr.line });
                 return Error.MalformedFile;
             }
 
@@ -231,8 +234,9 @@ pub fn parse(node: Node, field: StructField, allocator: Allocator) !field.type {
             const items = array.items;
             const array_len = items.len;
             if (array_len != 2) {
+                const path = try Doc.fromNode(node).getPath(allocator);
                 logger.err("FamilyClass should be 2 elements long: {d}", .{array_len});
-                logger.err("→ {s}:{d}", .{ node.ptr.doc.*.URL, node.ptr.line });
+                logger.err("→ {s}:{d}", .{ path, node.ptr.line });
                 return Error.MalformedFile;
             }
 
@@ -344,11 +348,11 @@ const fmt = std.fmt;
 const Allocator = mem.Allocator;
 const StructField = std.builtin.Type.StructField;
 
-const logger = @import("../Logger.zig").scopped(.xml_node);
+const logger = @import("../Logger.zig").scopped(.@"xml Node");
+
 const FontInfo = @import("../FontInfo.zig");
 const ComptimeKeyMaps = @import("../ComptimeKeyMaps.zig");
 
-// Just for tests
 const Doc = @import("Doc.zig");
 
 test "getRootElement returns a Node only for known format types" {

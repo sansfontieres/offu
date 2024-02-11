@@ -29,6 +29,12 @@ pub fn fromFile(path: []const u8) !Doc {
     return Doc{ .ptr = doc };
 }
 
+/// Given a node, returns the Docs it came from
+pub fn fromNode(node: Node) Doc {
+    const xml_doc = node.ptr.*.doc;
+    return Doc{ .ptr = xml_doc };
+}
+
 pub fn deinit(doc: *Doc) void {
     libxml2.xmlFreeDoc(doc.ptr);
 
@@ -50,12 +56,18 @@ pub fn getRootElement(doc: Doc) !Node {
     return Node{ .ptr = root_element };
 }
 
-/// Returns the path of the file of the current Doc
+/// Returns the URL of the file of the current Doc
 pub fn getUrl(doc: Doc) []const u8 {
     return std.mem.span(doc.ptr.URL);
 }
 
+// HINT: Maybe we should just store the path in the struct.
+/// Returns the path of the file of the current Doc
+pub fn getPath(doc: Doc, allocator: std.mem.Allocator) ![]const u8 {
+    return try std.Uri.unescapeString(allocator, doc.getUrl());
+}
+
 const std = @import("std");
 const libxml2 = @import("../libxml2.zig");
-const logger = @import("../Logger.zig").scopped(.xml_doc);
+const logger = @import("../Logger.zig").scopped(.@"xml Doc");
 const Node = @import("Node.zig");

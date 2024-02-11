@@ -5,8 +5,8 @@
 //!
 //! [layercontents.plist]: https://unifiedfontobject.org/versions/ufo3/layercontents.plist/
 
-/// A list of Layers, the first one being the default layer.
-/// The list MUST NOT be empty.
+/// A list of Layers, the first one being the default layer. The list
+/// MUST NOT be empty.
 pub const LayerContents = @This();
 
 layers: std.MultiArrayList(Layer),
@@ -23,8 +23,8 @@ pub const Layer = struct {
 
 /// This file is built in a weird way. Instead of having an array of
 /// dicts, it holds arrays of arrays of strings, the first being the
-/// name, the last being the directory.
-pub fn initFromDoc(doc: *xml.Doc, allocator: std.mem.Allocator) !LayerContents {
+/// name, the last being the path directory.
+pub fn initFromDoc(doc: xml.Doc, allocator: std.mem.Allocator) !LayerContents {
     const root_node = try doc.getRootElement();
     var layer_contents = LayerContents{ .layers = std.MultiArrayList(Layer){} };
 
@@ -63,26 +63,24 @@ test "initFromDoc" {
     var doc = try xml.Doc.fromFile("test_inputs/Untitled.ufo/layercontents.plist");
     defer doc.deinit();
 
-    var layer_contents = try initFromDoc(&doc, test_allocator);
+    var layer_contents = try initFromDoc(doc, test_allocator);
     defer layer_contents.deinit(test_allocator);
 
-    try std.testing.expectEqualStrings(
-        "foreground",
-        layer_contents.layers.get(0).name,
-    );
+    try std.testing.expectEqualStrings("foreground", layer_contents.layers.get(0).name);
+    try std.testing.expectEqualStrings("glyphs", layer_contents.layers.get(0).path);
+    try std.testing.expectEqualStrings("background", layer_contents.layers.get(1).name);
+    try std.testing.expectEqualStrings("glyphs.background", layer_contents.layers.get(1).path);
+}
 
-    try std.testing.expectEqualStrings(
-        "glyphs",
-        layer_contents.layers.get(0).directory,
-    );
+test "getDefaultLayer returns the correct layer" {
+    const test_allocator = std.testing.allocator;
 
-    try std.testing.expectEqualStrings(
-        "background",
-        layer_contents.layers.get(1).name,
-    );
+    var doc = try xml.Doc.fromFile("test_inputs/Untitled.ufo/layercontents.plist");
+    defer doc.deinit();
 
-    try std.testing.expectEqualStrings(
-        "glyphs.background",
-        layer_contents.layers.get(1).directory,
-    );
+    var layer_contents = try initFromDoc(doc, test_allocator);
+    defer layer_contents.deinit(test_allocator);
+
+    const default_layer = try layer_contents.getDefaultLayer();
+    try std.testing.expectEqualStrings("foreground", default_layer.name);
 }
