@@ -76,12 +76,19 @@ pub fn getName(node: Node) []const u8 {
     return mem.span(node.ptr.name);
 }
 
+pub fn getProp(node: Node, key: []const u8) ?[]const u8 {
+    const raw_prop = libxml2.xmlGetProp(node.ptr, key.ptr);
+
+    if (raw_prop == 0) return null;
+
+    return mem.span(raw_prop);
+}
+
 /// Get the type of an XML element (comment, attribute, etc.).
 pub fn getElementType(node: Node) ?ElementType {
     return std.meta.intToEnum(ElementType, node.ptr.type) catch return null;
 }
 
-// TODO: Create an AttrIterator for .glif
 pub const NodeIterator = struct {
     node: ?Node,
 
@@ -114,6 +121,140 @@ pub fn iterateDict(dict: Node) !NodeIterator {
     if (node == null) return Error.NoDictKey;
 
     return NodeIterator{ .node = node.? };
+}
+
+pub fn iterate(node: Node) NodeIterator {
+    return NodeIterator{ .node = node };
+}
+
+// TODO: This sucks.
+/// Given a root node, try to parse each node of a *.glif file and their
+/// attributes to a struct.
+pub fn glifToStruct(node: Node, allocator: Allocator) !Glif {
+    var glif = Glif{};
+    const key_map = try ComptimeKeyMaps.get(Glif);
+
+    glif.codepoints = std.AutoHashMap(u21, void).init(allocator);
+    glif.anchors = std.ArrayList(Glif.Anchor).init(allocator);
+
+    var outline_node: ?Node = null;
+
+    var node_it = node.iterate();
+    while (node_it.next()) |cur| {
+        const node_name = cur.getName();
+        const key: std.meta.FieldEnum(Glif) = key_map.get(node_name) orelse {
+            logger.warn("Unknown Node: {s}", .{node_name});
+            continue;
+        };
+
+        switch (key) {
+            .format_version => {
+                glif.format_version.major = try fmt.parseInt(usize, cur.getProp("format").?, 10);
+
+                if (cur.getProp("formatMinor")) |format_minor| {
+                    glif.format_version.minor = try std.fmt.parseInt(usize, format_minor, 10);
+                }
+
+                if (cur.findChild(null)) |child_element| node_it = child_element.iterate();
+            },
+
+            .advance => {
+                if (cur.getProp("height")) |h| {
+                    glif.advance.height = try std.fmt.parseFloat(f64, h);
+                }
+
+                if (cur.getProp("width")) |w| {
+                    glif.advance.width = try std.fmt.parseFloat(f64, w);
+                }
+            },
+
+            .codepoints => {
+                const codepoint = try Glif.codepointFromString(cur.getProp("hex").?);
+                try glif.codepoints.put(codepoint, {});
+            },
+
+            .outline => {
+                glif.outline = Glif.Outline{};
+                outline_node = cur.findChild(null);
+            },
+
+            .anchors => {
+                const x = try std.fmt.parseFloat(f64, cur.getProp("x").?);
+                const y = try std.fmt.parseFloat(f64, cur.getProp("y").?);
+                var name: ?[]const u8 = null;
+                var identifier: ?[]const u8 = null;
+                if (cur.getProp("name")) |prop_name| name = prop_name;
+                if (cur.getProp("identifier")) |prop_identifier| identifier = prop_identifier;
+
+                try glif.anchors.append(.{
+                    .x = x,
+                    .y = y,
+                    .name = name,
+                    .identifier = identifier,
+                });
+            },
+
+            else => return Error.UnknownKey,
+        }
+    }
+
+    if (outline_node) |o_node| node_it = o_node.iterate();
+    var component_inited = false;
+    var contour_inited = false;
+    while (node_it.next()) |cur| {
+        if (std.mem.eql(u8, cur.getName(), "component")) {
+            if (!component_inited) {
+                glif.outline.?.components = std.ArrayList(Glif.Component).init(allocator);
+                component_inited = true;
+            }
+
+            const base = cur.getProp("base").?;
+
+            var x_scale: f64 = 1;
+            var xy_scale: f64 = 0;
+            var yx_scale: f64 = 0;
+            var y_scale: f64 = 1;
+            var x_offset: f64 = 0;
+            var y_offset: f64 = 0;
+
+            if (cur.getProp("xScale")) |str| x_scale = try fmt.parseFloat(f64, str);
+            if (cur.getProp("xyScale")) |str| xy_scale = try fmt.parseFloat(f64, str);
+            if (cur.getProp("yxScale")) |str| yx_scale = try fmt.parseFloat(f64, str);
+            if (cur.getProp("yScale")) |str| y_scale = try fmt.parseFloat(f64, str);
+            if (cur.getProp("xOffset")) |str| x_offset = try fmt.parseFloat(f64, str);
+            if (cur.getProp("yOffset")) |str| y_offset = try fmt.parseFloat(f64, str);
+
+            var color: ?Color = null;
+            if (cur.getProp("color")) |str| color = try Color.fromString(str);
+            const identifier: ?[]const u8 = cur.getProp("identifier");
+
+            try glif.outline.?.components.?.append(.{
+                .base = base,
+                .x_scale = x_scale,
+                .xy_scale = xy_scale,
+                .yx_scale = yx_scale,
+                .y_scale = y_scale,
+                .x_offset = x_offset,
+                .y_offset = y_offset,
+                .color = color,
+                .identifier = identifier,
+            });
+        }
+
+        if (std.mem.eql(u8, cur.getName(), "contour")) {
+            if (!contour_inited) {
+                glif.outline.?.contours = std.ArrayList(Glif.Contour).init(allocator);
+                contour_inited = true;
+            }
+
+            const identifier: ?[]const u8 = cur.getProp("identifier");
+            const points = try cur.arrayToArrayList(allocator, Glif.Point);
+
+            try glif.outline.?.contours.?.append(.{ .identifier = identifier, .points = points });
+        }
+    }
+
+    return glif;
 }
 
 /// Given a XML dict and a struct, maps the dict values into the
@@ -290,6 +431,7 @@ pub fn arrayToBitSet(node: Node, comptime size: usize) !std.StaticBitSet(size) {
 /// Parses an arrays of dicts into a Struct of Arrays
 pub fn arrayToSoa(node: Node, allocator: Allocator, T: anytype) !std.MultiArrayList(T) {
     var soa = std.MultiArrayList(T){};
+    const doc = Doc.fromNode(node);
 
     var node_it = try node.iterateArray();
     while (node_it.next()) |item| {
@@ -299,12 +441,42 @@ pub fn arrayToSoa(node: Node, allocator: Allocator, T: anytype) !std.MultiArrayL
                 try soa.append(allocator, s);
             },
 
+            Layer => {
+                const layers_arry = try node.arrayToArrayList(allocator, std.ArrayList([]const u8));
+                defer layers_arry.deinit();
+
+                for (layers_arry.items) |l| {
+                    defer l.deinit();
+
+                    const items = l.items;
+                    if (items.len != 2) {
+                        logger.err("Layer is not two elements long: {d}", .{items.len});
+                        return Error.MalformedFile;
+                    }
+
+                    const doc_path = try doc.getPath(allocator);
+                    defer allocator.free(doc_path);
+
+                    const root = std.fs.path.dirname(doc_path).?;
+
+                    const layer = try Layer.init(allocator, .{
+                        .name = items[0],
+                        .root = root,
+                        .dirname = items[1],
+                    });
+
+                    try soa.append(allocator, layer);
+                }
+            },
+
             else => return Error.UnknownValue,
         }
     }
+
     return soa;
 }
 
+// TODO: const Child = std.meta.Child(T);
 /// Parses an arrays of an arbitrary type into an ArrayList
 pub fn arrayToArrayList(node: Node, allocator: Allocator, T: anytype) !std.ArrayList(T) {
     var t = std.ArrayList(T).init(allocator);
@@ -333,6 +505,37 @@ pub fn arrayToArrayList(node: Node, allocator: Allocator, T: anytype) !std.Array
                 }
             },
 
+            Glif.Point => {
+                const x = try fmt.parseFloat(f64, item.getProp("x").?);
+                const y = try fmt.parseFloat(f64, item.getProp("y").?);
+                var point_type: Glif.PointType = undefined;
+                var smooth = false;
+                var name: ?[]const u8 = null;
+                var identifier: ?[]const u8 = null;
+
+                if (item.getProp("type")) |str| {
+                    point_type = std.meta.stringToEnum(Glif.PointType, str) orelse
+                        return Error.UnknownValue;
+                }
+
+                if (item.getProp("smooth")) |str| {
+                    if (mem.eql(u8, str, "yes")) smooth = true;
+                    if (mem.eql(u8, str, "no")) smooth = false;
+                }
+
+                if (item.getProp("name")) |str| name = str;
+                if (item.getProp("identifier")) |str| identifier = str;
+
+                try t.append(.{
+                    .x = x,
+                    .y = y,
+                    .type = point_type,
+                    .smooth = smooth,
+                    .name = name,
+                    .identifier = identifier,
+                });
+            },
+
             else => return Error.UnknownValue,
         }
     }
@@ -351,7 +554,10 @@ const StructField = std.builtin.Type.StructField;
 const logger = @import("../Logger.zig").scopped(.@"xml Node");
 
 const FontInfo = @import("../FontInfo.zig");
+const Layer = @import("../Layer.zig");
+const Glif = @import("../Glif.zig");
 const ComptimeKeyMaps = @import("../ComptimeKeyMaps.zig");
+const Color = @import("../Color.zig");
 
 const Doc = @import("Doc.zig");
 

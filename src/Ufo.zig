@@ -9,6 +9,9 @@ font_info_doc: ?xml.Doc,
 meta_info: MetaInfo,
 meta_info_doc: xml.Doc,
 
+layer_contents: LayerContents,
+layer_contents_doc: xml.Doc,
+
 pub const CreateOptions = struct {
     font_info_file: ?[]const u8 = null,
     meta_info_file: ?[]const u8 = null,
@@ -24,6 +27,9 @@ pub fn init(path: []const u8, allocator: std.mem.Allocator, options: CreateOptio
 
     var meta_info: MetaInfo = undefined;
     var meta_info_doc: xml.Doc = undefined;
+
+    var layer_contents: LayerContents = undefined;
+    var layer_contents_doc: xml.Doc = undefined;
 
     font_info_doc = blk: {
         var font_info_file: []const u8 = FontInfo.font_info_file;
@@ -59,6 +65,18 @@ pub fn init(path: []const u8, allocator: std.mem.Allocator, options: CreateOptio
 
     meta_info = try MetaInfo.initFromDoc(meta_info_doc, allocator);
 
+    layer_contents_doc = blk: {
+        var layer_contents_file: []const u8 = LayerContents.layer_contents_file;
+        if (options.layer_contents_file) |option| layer_contents_file = option;
+
+        const full_path = try std.fs.path.join(allocator, &[_][]const u8{ path, layer_contents_file });
+        defer allocator.free(full_path);
+
+        break :blk try xml.Doc.fromFile(full_path);
+    };
+
+    layer_contents = try LayerContents.initFromDoc(layer_contents_doc, allocator);
+
     logger.info("{s} was successfully loaded", .{path});
     return Ufo{
         .path = path,
@@ -68,6 +86,9 @@ pub fn init(path: []const u8, allocator: std.mem.Allocator, options: CreateOptio
 
         .meta_info = meta_info,
         .meta_info_doc = meta_info_doc,
+
+        .layer_contents = layer_contents,
+        .layer_contents_doc = layer_contents_doc,
     };
 }
 
@@ -78,6 +99,8 @@ pub fn deinit(self: *Ufo, allocator: std.mem.Allocator) void {
     }
 
     self.meta_info_doc.deinit();
+
+    self.layer_contents.deinit(allocator);
 }
 
 pub fn validate(self: *Ufo) !void {

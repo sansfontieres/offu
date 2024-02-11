@@ -7,6 +7,7 @@ pub const ComptimeKeyMaps = @This();
 pub fn get(comptime T: anytype) !type {
     return switch (T) {
         MetaInfo => MetaInfoKeyMap,
+
         FontInfo => FontInfoKeyMap,
         FontInfo.GaspRangeRecord => GaspRangeRecordKeyMap,
         FontInfo.NameRecord => NameRecordKeyMap,
@@ -26,6 +27,7 @@ pub fn get(comptime T: anytype) !type {
         FontInfo.WoffMetadataExtensionValue => WoffMetadataExtensionValueKeyMap,
         FontInfo.Guideline => GuidelineKeyMap,
 
+        Glif => GlifKeyMap,
         else => error.UnknownStruct,
     };
 }
@@ -310,7 +312,19 @@ const GuidelineKeyMap = std.ComptimeStringMap(
     },
 );
 
+const GlifKeyMap = std.ComptimeStringMap(
+    std.meta.FieldEnum(Glif),
+    .{
+        .{ "glyph", .format_version },
+        .{ "unicode", .codepoints },
+        .{ "advance", .advance },
+        .{ "outline", .outline },
+        .{ "anchor", .anchors },
+    },
+);
+
 const std = @import("std");
 
 const MetaInfo = @import("MetaInfo.zig");
 const FontInfo = @import("FontInfo.zig");
+const Glif = @import("Glif.zig");

@@ -11,51 +11,100 @@ pub const LayerContents = @This();
 
 layers: std.MultiArrayList(Layer),
 
-pub const Layer = struct {
-    /// The name of the layer, must be unique
-    name: []const u8,
-
-    /// The directory of the layer, a string representing a path
-    /// relative to the root of a given UFO. Must start with
-    /// “glyph.”
-    directory: []const u8,
+const Error = error{
+    DuplicateLayer,
+    EmptyLayerContents,
 };
+
+/// Returns the default layer from LayerContents, which is always the
+/// first layer defined in layercontents.plist
+pub fn getDefaultLayer(self: *LayerContents) !Layer {
+    if (self.layers.len == 0) return Error.EmptyLayerContents;
+
+    return self.layers.get(0);
+}
 
 /// This file is built in a weird way. Instead of having an array of
 /// dicts, it holds arrays of arrays of strings, the first being the
 /// name, the last being the path directory.
 pub fn initFromDoc(doc: xml.Doc, allocator: std.mem.Allocator) !LayerContents {
     const root_node = try doc.getRootElement();
-    var layer_contents = LayerContents{ .layers = std.MultiArrayList(Layer){} };
 
-    const array_of_raw_layers = try root_node.xmlArrayToArray(
-        allocator,
-        std.ArrayList([]const u8),
-    );
-    defer array_of_raw_layers.deinit();
+    const layers = try root_node.arrayToSoa(allocator, Layer);
 
-    for (array_of_raw_layers.items) |raw_layer| {
-        defer raw_layer.deinit();
-        try layer_contents.layers.append(
-            allocator,
-            .{
-                .name = raw_layer.items[0],
-                .directory = raw_layer.items[1],
-            },
-        );
-    }
+    var layer_contents: LayerContents = .{ .layers = layers };
+    try layer_contents.validate(allocator);
 
     return layer_contents;
 }
 
-pub fn deinit(layer_content: *LayerContents, allocator: std.mem.Allocator) void {
-    layer_content.layers.deinit(allocator);
+pub fn deinit(self: *LayerContents, allocator: std.mem.Allocator) void {
+    while (true) {
+        var layer: ?Layer = undefined;
+        layer = self.layers.popOrNull();
+        if (layer) |*l| l.deinit() else break;
+    }
+
+    self.layers.deinit(allocator);
+}
+
+// Feels like a duplicate of validate...
+pub fn append(self: *LayerContents, allocator: std.mem.Allocator, layer: Layer) !void {
+    if (self.layers.len == 0) {
+        self.layers.append(allocator, layer);
+        return;
+    }
+
+    var names = std.StringHashMapUnmanaged(void){};
+    defer names.deinit(allocator);
+
+    var paths = std.StringHashMapUnmanaged(void){};
+    defer paths.deinit(allocator);
+
+    for (self.layers.items(.name), self.layers.items(.path)) |name, path| {
+        try names.putNoClobber(allocator, name, {});
+        try paths.putNoClobber(allocator, path, {});
+    }
+
+    try names.putNoClobber(allocator, layer.name, {}) catch {
+        logger.err("This layer name is a duplicate: {s}", .{layer.name});
+        return Error.DuplicateLayer;
+    };
+
+    try paths.putNoClobber(allocator, layer.path, {}) catch {
+        logger.err("This layer path is a duplicate: {s}", .{layer.path});
+        return Error.DuplicateLayer;
+    };
+}
+
+pub fn validate(self: *LayerContents, allocator: std.mem.Allocator) !void {
+    if (self.layers.len == 0) return Error.EmptyLayerContents;
+
+    var names = std.StringHashMapUnmanaged(void){};
+    defer names.deinit(allocator);
+
+    var paths = std.StringHashMapUnmanaged(void){};
+    defer paths.deinit(allocator);
+
+    for (self.layers.items(.name), self.layers.items(.path)) |name, path| {
+        names.putNoClobber(allocator, name, {}) catch {
+            logger.err("This layer name is a duplicate: {s}", .{name});
+            return Error.DuplicateLayer;
+        };
+
+        paths.putNoClobber(allocator, path, {}) catch {
+            logger.err("This layer path is a duplicate: {s}", .{path});
+            return Error.DuplicateLayer;
+        };
+    }
 }
 
 const std = @import("std");
 const xml = @import("xml.zig");
-const logger = @import("Logger.zig").scopped(.layercontents);
-const Glif = @import("Glif.zig");
+const logger = @import("Logger.zig").scopped(.LayerContents);
+const Layer = @import("Layer.zig");
+
+pub const layer_contents_file = "layercontents.plist";
 
 test "initFromDoc" {
     const test_allocator = std.testing.allocator;
