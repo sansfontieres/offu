@@ -14,19 +14,19 @@ pub fn build(b: *std.Build) void {
         },
     );
 
-    const offu_mod = b.addModule(
+    const offu = b.addModule(
         "offu",
         .{ .root_source_file = .{ .path = "src/offu.zig" } },
     );
-    offu_mod.linkLibrary(libxml2_dep.artifact("xml2"));
+    offu.linkLibrary(libxml2_dep.artifact("xml2"));
 
-    const offu = b.addObject(.{
+    const obj = b.addObject(.{
         .name = "offu",
         .root_source_file = .{ .path = "src/offu.zig" },
         .target = target,
         .optimize = optimize,
     });
-    const docs_path = offu.getEmittedDocs();
+    const docs_path = obj.getEmittedDocs();
     const install_docs = b.addInstallDirectory(.{
         .source_dir = docs_path,
         .install_dir = .prefix,
@@ -54,7 +54,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
-    read_exe.root_module.addImport("offu", offu_mod);
+    read_exe.root_module.addImport("offu", offu);
     examples_step.dependOn(&b.addInstallArtifact(read_exe, .{}).step);
 
     const run_examples_step = b.step("run-examples", "Run examples");
