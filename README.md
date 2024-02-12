@@ -30,10 +30,10 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const offu_dep = b.dependency("offu", .{
+    const offu = b.dependency("offu", .{
         .target = target,
         .optimize = optimize,
-    });
+    }).module("offu");
 
     const exe = b.addExecutable(.{
         .name = "my-project",
@@ -41,7 +41,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
-    exe.root_module.addImport("offu", offu_dep);
+    exe.root_module.addImport("offu", offu);
 }
 ```
 
