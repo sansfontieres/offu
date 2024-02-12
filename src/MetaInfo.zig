@@ -8,7 +8,7 @@ const MetaInfo = @This();
 
 /// The application or library that created the UFO. This should follow
 /// a reverse domain naming scheme. For example, org.robofab.ufoLib.
-creator: ?[]const u8 = meta_info_default_creator,
+creator: ?[]const u8 = offu.authoring_name,
 
 /// The major version number of the UFO format. Required.
 format_version: usize = undefined,
@@ -41,7 +41,7 @@ pub fn validate(self: *MetaInfo) !void {
 
 /// Replace the name of the authoring tool with our own
 pub fn updateCreator(self: *MetaInfo) void {
-    self.creator = meta_info_default_creator;
+    self.creator = offu.authoring_name;
 }
 
 // This is medieval
@@ -55,8 +55,7 @@ pub fn initFromDoc(doc: xml.Doc, allocator: std.mem.Allocator) !MetaInfo {
 const std = @import("std");
 pub const xml = @import("xml.zig");
 const logger = @import("Logger.zig").scopped(.MetaInfo);
-
-const meta_info_default_creator = "com.sansfontieres.offu";
+const offu = @import("offu.zig");
 
 pub const meta_info_file = "metainfo.plist";
 
@@ -71,7 +70,7 @@ test "deserialize" {
     try std.testing.expectEqualStrings("com.github.fonttools.ufoLib", meta_info.creator.?);
 
     meta_info.updateCreator();
-    try std.testing.expectEqualStrings(meta_info_default_creator, meta_info.creator.?);
+    try std.testing.expectEqualStrings(offu.authoring_name, meta_info.creator.?);
 
     try std.testing.expectEqual(3, meta_info.format_version);
     try std.testing.expectEqual(null, meta_info.format_version_minor);

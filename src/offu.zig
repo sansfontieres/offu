@@ -14,6 +14,9 @@ pub const Ufo = @import("Ufo.zig");
 pub const FontInfo = @import("FontInfo.zig");
 pub const MetaInfo = @import("MetaInfo.zig");
 pub const LayerContents = @import("LayerContents.zig");
+pub const Layer = @import("Layer.zig");
+pub const Glif = @import("Glif.zig");
+pub const Color = @import("Color.zig");
 
 // Missing
 // * groups.plist
@@ -26,3 +29,4 @@ pub const LayerContents = @import("LayerContents.zig");
 // pub const Feature = @import("Feature.zig");
 
 pub const logger = @import("Logger.zig").scopped(.Offu);
+pub const authoring_name = "com.sansfontieres.offu";
