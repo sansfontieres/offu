@@ -4,8 +4,8 @@
 
     .dependencies = .{
         .libxml2 = .{
-            .url = "https://github.com/ianprime0509/zig-build-libxml2/archive/4d1b7db156b0e7a19127c652adefdf27799770ab.tar.gz",
-            .hash = "122011b13203141cc965cfe6b070ffb5a8835eb906bb2cfd4650dbc17574e6e36fd5",
+            .url = "https://github.com/ianprime0509/zig-build-libxml2/archive/a0d5335c222262e1c5b1af75c7038cf4209ff510.tar.gz",
+            .hash = "122072bb3d6bed8c249c9ba576aae4d6e13a0458a1be0ad1d5e334cec8b6e5fdde74",
         },
     },
     .paths = .{""},
